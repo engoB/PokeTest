@@ -1,177 +1,71 @@
-<!DOCTYPE html>
-<html lang="fr" class="dark">
+<!doctype html>
+<html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>PokéVault Pro — iPadOS</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101319">
+  <meta name="description" content="Explorez les cartes Pokémon et organisez votre collection, même hors connexion.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PokéVault">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+  <title>PokéVault — Mon classeur</title>
+  <script type="module" src="./app.js"></script>
 </head>
-<body class="bg-[#090d16] text-slate-100 min-h-screen flex flex-col select-none">
-
-  <!-- TOP BARRE IPADOS -->
-  <header class="sticky top-0 z-40 glass border-b border-white/10 px-4 py-3">
-    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
-      <div class="flex items-center gap-3">
-        <button id="btn-toggle-sidebar" class="lg:hidden p-2 rounded-xl bg-white/5 active:bg-white/10 text-cyan-400">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-        </button>
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="font-black text-lg bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent">PokéVault Pro</span>
-            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">iPadOS</span>
-          </div>
-          <p id="header-set-label" class="text-xs text-slate-400 truncate max-w-[200px] sm:max-w-xs">🌐 Toutes les cartes</p>
+<body>
+  <a class="skip-link" href="#main">Aller au contenu</a>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <button class="icon-button mobile-only" id="sidebar-open" type="button" aria-label="Ouvrir les extensions" aria-controls="sidebar" aria-expanded="false"><span class="menu-icon" aria-hidden="true">☰</span></button>
+        <a class="brand" href="./" aria-label="PokéVault, accueil"><span class="brand-mark" aria-hidden="true">◈</span><span>Poké<span class="brand-highlight">Vault</span></span></a>
+        <span id="network-indicator" class="network-indicator" role="status" aria-live="polite" hidden>Hors connexion</span>
+        <div class="header-actions">
+          <div class="header-portfolio" title="Estimation fondée sur les prix disponibles, non garantie"><span class="eyebrow">Valeur suivie</span><strong id="portfolio-value">0,00 €</strong></div>
+          <button id="install-btn" type="button" class="button button-soft" hidden>Installer</button>
         </div>
       </div>
+    </header>
 
-      <!-- Total Portfolio -->
-      <div class="hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-2xl bg-white/5 border border-white/10">
-        <span class="text-xs text-slate-400 font-medium">Portfolio :</span>
-        <span id="header-portfolio-val" class="text-sm font-black text-amber-400">0,00 €</span>
-      </div>
-
-      <!-- Onglets Navigation -->
-      <div class="flex items-center gap-1.5 bg-black/40 p-1 rounded-xl border border-white/10 text-xs font-bold">
-        <button id="tab-btn-collection" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white">Classeur</button>
-        <button id="tab-btn-guide" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white">Anti-Fausses</button>
-      </div>
-    </div>
-  </header>
-
-  <div class="flex-1 flex max-w-7xl w-full mx-auto relative">
-    
-    <!-- TIROIR LATÉRAL DES EXTENSIONS -->
-    <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 glass border-r border-white/10 p-4 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-200 flex flex-col gap-3">
-      <div class="flex items-center justify-between pb-2 border-b border-white/10">
-        <span class="font-bold text-sm text-slate-300">Séries & Extensions</span>
-        <button id="btn-close-sidebar" class="lg:hidden text-slate-400 p-1">✕</button>
-      </div>
-
-      <button id="btn-universal-set" class="w-full p-2.5 rounded-xl border text-left text-xs font-bold transition flex items-center justify-between bg-indigo-600/30 border-indigo-500 text-white">
-        <span>🌐 Toutes les cartes</span>
-        <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20">GLOBAL</span>
-      </button>
-
-      <input type="text" id="filter-sets-input" placeholder="Filtrer extensions (151, Pocket...)" class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
-
-      <div id="sets-list" class="flex-1 overflow-y-auto space-y-1 pr-1 text-xs">
-        <div class="text-slate-500 p-2">Chargement des séries...</div>
-      </div>
-    </aside>
-
-    <!-- ZONE PRINCIPALE -->
-    <main class="flex-1 p-4 flex flex-col gap-4 overflow-x-hidden">
-      
-      <!-- FILTRES ET RECHERCHE -->
-      <section id="controls-section" class="flex flex-col gap-3">
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-          <!-- Recherche sans accents -->
-          <div class="relative md:col-span-2">
-            <input type="text" id="search-input" placeholder="Rechercher (flamigator, elector, dracaufeu...)" class="w-full bg-black/40 border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500">
-            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          </div>
-
-          <select id="status-select" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
-            <option value="all">Toutes les cartes</option>
-            <option value="owned">Possédées (✓)</option>
-            <option value="missing">Manquantes (✗)</option>
-          </select>
-
-          <select id="sort-select" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
-            <option value="price-desc">Cote Cardmarket (€€€ Décroissant)</option>
-            <option value="price-asc">Prix le moins cher (€)</option>
-            <option value="num-asc">Numéro (#1 → Fin)</option>
-            <option value="name-asc">Nom (A → Z)</option>
-          </select>
+    <div class="workspace">
+      <div id="sidebar-scrim" class="sidebar-scrim" hidden></div>
+      <aside id="sidebar" class="sidebar" aria-label="Séries et sauvegarde">
+        <div class="sidebar-heading"><span class="eyebrow">BIBLIOTHÈQUE</span><button id="sidebar-close" class="icon-button mobile-only" type="button" aria-label="Fermer les extensions">×</button></div>
+        <button id="all-sets" type="button" class="set-button is-selected" aria-pressed="true"><span><span class="set-dot" aria-hidden="true"></span>Toutes les cartes</span><span class="set-count" id="all-sets-count">—</span></button>
+        <label class="field-label" for="set-search">Extensions</label>
+        <input id="set-search" class="input input-small" type="search" placeholder="Rechercher une extension…" autocomplete="off">
+        <nav id="sets-list" class="sets-list" aria-label="Sélectionner une extension"><p class="hint">Chargement des extensions…</p></nav>
+        <div class="sidebar-bottom">
+          <span class="eyebrow">MA COLLECTION · SUR CET APPAREIL</span>
+          <p class="sidebar-note">Vos cartes restent sur cet appareil. Exportez-les pour conserver une copie.</p>
+          <div class="sidebar-tools"><button id="export-btn" class="button button-outline" type="button">Exporter</button><button id="import-btn" class="button button-outline" type="button">Importer</button></div>
+          <input id="import-file" type="file" accept="application/json,.json" hidden>
         </div>
+      </aside>
 
-        <!-- Chips Filtres tactiles -->
-        <div id="chips-container" class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 text-xs font-bold">
-          <button data-filter="all" class="chip-btn px-3 py-1.5 rounded-xl bg-indigo-600 text-white whitespace-nowrap">Tous</button>
-          <button data-filter="ex" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Cartes "ex" / "EX"</button>
-          <button data-filter="mega" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Méga-Évolution</button>
-          <button data-filter="v_vmax" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">V / VMAX / VSTAR</button>
-          <button data-filter="gx" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Cartes GX</button>
-          <button data-filter="ar_sar" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">AR / SAR / Alt</button>
-          <button data-filter="secret" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Secrètes & Gold</button>
-          <button data-filter="over10" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-amber-400 whitespace-nowrap">Cote > 10 €</button>
-          <button data-filter="over50" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-orange-400 whitespace-nowrap">Cote > 50 €</button>
-        </div>
+      <main id="main" class="main">
+        <div class="main-top"><div><p class="eyebrow accent">VOTRE ESPACE DE COLLECTION</p><h1 id="current-set-title">Toutes les cartes</h1><p id="set-subtitle" class="muted">Explorez votre prochain trésor.</p></div><div class="summary"><div><span class="eyebrow">Cartes possédées</span><strong id="owned-total">0</strong></div><div class="summary-separator"></div><div><span class="eyebrow">Références</span><strong id="owned-unique">0</strong></div></div></div>
+        <div class="tabs" role="tablist" aria-label="Navigation"><button id="tab-cards" type="button" role="tab" aria-selected="true" aria-controls="catalog" class="tab is-active">Classeur</button><button id="tab-guide" type="button" role="tab" aria-selected="false" aria-controls="guide" class="tab">Authenticité</button></div>
 
-        <!-- Zoom et Stats -->
-        <div class="flex items-center justify-between pt-1 border-t border-white/10 text-xs">
-          <span id="counter-stats" class="text-slate-400 font-medium">Chargement...</span>
-          <div class="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
-            <button id="zoom-comfort" class="px-2 py-1 rounded bg-indigo-600 text-white font-bold">Confort iPad</button>
-            <button id="zoom-giant" class="px-2 py-1 rounded text-slate-400 hover:text-white font-bold">Géant HD</button>
-            <button id="zoom-compact" class="px-2 py-1 rounded text-slate-400 hover:text-white font-bold">Compact</button>
-          </div>
-        </div>
-      </section>
+        <section id="catalog" role="tabpanel" aria-labelledby="tab-cards">
+          <div class="toolbar"><label class="search-wrap"><span class="sr-only">Rechercher une carte</span><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.7"/><path d="m16 16 5 5"/></svg><input id="card-search" type="search" autocomplete="off" placeholder="Nom, numéro ou identifiant de carte…"></label><label class="select-wrap"><span class="sr-only">Trier les cartes</span><select id="sort-select"><option value="number">Numéro de carte</option><option value="name">Nom A–Z</option><option value="price-desc">Prix décroissant*</option><option value="price-asc">Prix croissant*</option></select></label></div>
+          <div class="filters-row"><div id="status-filters" class="segmented" aria-label="Filtrer la collection"><button type="button" data-status="all" aria-pressed="true" class="is-active">Tout voir</button><button type="button" data-status="owned" aria-pressed="false">Possédées</button><button type="button" data-status="missing" aria-pressed="false">Manquantes</button></div><label class="select-wrap category-select"><span class="sr-only">Type de carte</span><select id="type-select"><option value="all">Tous les types</option><option value="ex">ex / EX</option><option value="mega">Méga</option><option value="v">V / VMAX / VSTAR</option><option value="gx">GX</option><option value="illustration">Illustration</option><option value="secret">Secrète / Gold</option><option value="over10">Cote ≥ 10 €*</option><option value="over50">Cote ≥ 50 €*</option></select></label><div class="layout-switch" aria-label="Taille des cartes"><button type="button" data-layout="compact" aria-label="Affichage compact" title="Compact">▦</button><button type="button" data-layout="comfortable" aria-label="Affichage confortable" aria-pressed="true" class="is-active" title="Confort">▤</button><button type="button" data-layout="large" aria-label="Grand affichage" title="Grand">▣</button></div></div>
+          <div class="list-meta"><p id="counter" role="status" aria-live="polite">Préparation du catalogue…</p><span class="muted hint">* Classement selon les cotes déjà chargées</span></div>
+          <div id="cards-grid" class="cards-grid" data-layout="comfortable" aria-busy="true"><div class="skeleton-tile"></div><div class="skeleton-tile"></div><div class="skeleton-tile"></div><div class="skeleton-tile"></div></div>
+          <div id="empty-state" class="empty-state" hidden><span aria-hidden="true" class="empty-symbol">◇</span><h2>Aucune carte trouvée</h2><p>Modifiez votre recherche ou vos filtres.</p><button id="clear-filters" type="button" class="button button-primary">Réinitialiser les filtres</button></div>
+          <div class="load-more"><button id="load-more" type="button" class="button button-outline" hidden>Afficher plus de cartes</button></div>
+        </section>
 
-      <!-- GRILLE DES CARTES -->
-      <section id="cards-view" class="flex-1">
-        <div id="cards-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
-        <div id="load-more-wrap" class="py-8 text-center hidden">
-          <button id="btn-load-more" class="px-6 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs border border-white/10 transition">Afficher plus de cartes</button>
-        </div>
-      </section>
-
-      <!-- GUIDE ANTI-CONTREFAÇON -->
-      <section id="guide-view" class="hidden max-w-3xl mx-auto space-y-4 py-4 w-full">
-        <div class="p-6 rounded-3xl bg-[#131b2e] border border-white/10 space-y-4">
-          <h2 class="text-lg font-black text-cyan-400">Contrôle d'Authenticité</h2>
-          <div class="space-y-3 text-xs leading-relaxed text-slate-300">
-            <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <strong class="text-white">1. Tranche « Sandwich » :</strong> Les vraies cartes possèdent une fine ligne noire centrale comprimée. Les fausses ont une tranche unie blanche.
-            </div>
-            <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <strong class="text-white">2. Micro-Texture :</strong> Les cartes Full Art / Secrètes officielles ont des stries en relief perceptibles au toucher. Les contrefaçons sont totalement lisses.
-            </div>
-            <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <strong class="text-white">3. Test Torche LED :</strong> Le dos d'une vraie carte bloque le faisceau d'un flash de smartphone à 95 %.
-            </div>
-            <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <strong class="text-white">4. Orthographe & Typographie :</strong> Surveillez les accents sur les majuscules (« Énergie ») et la police des PV.
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <!-- MODALE INSPECTEUR -->
-  <div id="modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
-    <div id="modal-box" class="bg-[#131b2e] border border-white/15 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 flex flex-col md:flex-row gap-6 relative shadow-2xl">
-      <button id="modal-btn-close" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">✕</button>
-      
-      <div class="w-full md:w-1/2 flex items-center justify-center bg-black/40 rounded-2xl p-2 min-h-[300px]">
-        <img id="modal-img" src="" alt="" class="max-h-[460px] object-contain rounded-xl">
-      </div>
-
-      <div class="w-full md:w-1/2 flex flex-col justify-between gap-4">
-        <div>
-          <span id="modal-rarity" class="text-[10px] font-bold px-2 py-0.5 rounded bg-white/10 text-indigo-400">Rareté</span>
-          <h2 id="modal-title" class="text-xl font-black mt-2 text-white"></h2>
-          <p id="modal-sub" class="text-xs text-slate-400 mb-4"></p>
-
-          <div class="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2 text-xs">
-            <div class="font-bold text-cyan-400 text-sm mb-1">Cotation Cardmarket Europe</div>
-            <div class="flex justify-between"><span class="text-slate-400">Prix Tendance :</span><span id="modal-price-trend" class="font-black text-amber-400">-</span></div>
-            <div class="flex justify-between"><span class="text-slate-400">Moyenne 30j :</span><span id="modal-price-avg" class="font-medium text-slate-200">-</span></div>
-            <div class="flex justify-between"><span class="text-slate-400">Prix le plus bas :</span><span id="modal-price-low" class="font-medium text-slate-200">-</span></div>
-          </div>
-        </div>
-
-        <div class="flex gap-2">
-          <button id="modal-btn-add" class="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white transition">Ajouter au classeur</button>
-          <button id="modal-btn-del" class="py-3 px-4 rounded-2xl bg-white/10 hover:bg-rose-600 text-slate-300 hover:text-white font-bold text-xs transition">Retirer</button>
-        </div>
-      </div>
+        <section id="guide" role="tabpanel" aria-labelledby="tab-guide" hidden><div class="guide-intro"><p class="eyebrow accent">GUIDE PRATIQUE</p><h2>Vérifier une carte, avec méthode.</h2><p>Ces indices peuvent aider à repérer une anomalie, mais aucun test isolé ne prouve l'authenticité d'une carte.</p></div><div class="guide-grid"><article class="guide-card"><span>01</span><h3>Impression et détails</h3><p>Comparez la typographie, la netteté, les symboles et les couleurs avec un exemplaire vérifié du même tirage.</p></article><article class="guide-card"><span>02</span><h3>Texture et finition</h3><p>Certaines raretés présentent du relief. Il varie selon les éditions : l'absence de texture n'est pas une preuve de contrefaçon.</p></article><article class="guide-card"><span>03</span><h3>Tranche et lumière</h3><p>La construction varie selon les cartes. Les tests de lumière et de tranche ne sont pas suffisamment fiables pour conclure seuls.</p></article><article class="guide-card"><span>04</span><h3>En cas de doute</h3><p>Consultez un professionnel et évitez les tests destructifs : pliage, déchirure ou produits chimiques.</p></article></div></section>
+        <footer class="footer">Données et illustrations : TCGdex · Prix indicatifs Cardmarket, lorsqu'ils sont disponibles · Projet non affilié à Pokémon.</footer>
+      </main>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <div id="card-dialog" class="dialog-backdrop" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1"><button id="dialog-close" type="button" class="dialog-close icon-button" aria-label="Fermer la fiche">×</button><div class="dialog-media"><div id="dialog-image-holder" class="dialog-image-holder"><div class="card-ghost" aria-hidden="true"><span>◈</span><small>Illustration indisponible</small></div><img id="dialog-image" alt="" decoding="async" hidden></div></div><div class="dialog-content"><div class="eyebrow accent">FICHE DE COLLECTION</div><p id="dialog-rarity" class="rarity"></p><h2 id="dialog-title">Chargement…</h2><p id="dialog-subtitle" class="muted"></p><div class="price-panel"><span class="eyebrow">COTE INDICATIVE · CARDMARKET</span><strong id="dialog-price">—</strong><div class="price-details"><span>Moyenne 30 jours</span><span id="dialog-avg">—</span><span>Prix minimum</span><span id="dialog-low">—</span></div><small id="dialog-price-date" class="muted"></small></div><div class="quantity-panel"><div><span class="eyebrow">DANS MON CLASSEUR</span><strong id="dialog-quantity">0 exemplaire</strong></div><div class="quantity-actions"><button id="dialog-minus" type="button" class="icon-button" aria-label="Retirer un exemplaire">−</button><button id="dialog-plus" type="button" class="button button-primary" aria-label="Ajouter un exemplaire">+ Ajouter</button></div></div></div></section></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

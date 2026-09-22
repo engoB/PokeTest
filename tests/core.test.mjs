@@ -1,0 +1,16 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {normalize,escapeHtml,parsePrice,readCollection,imageUrls,cardMatchesType,sortCards,formatEuro} from '../core.mjs';
+test('accent-insensitive and common phonetic search',()=>{assert.equal(normalize(' Électôr '),'electhor');assert.equal(normalize('ELECTOR'),'electhor');});
+test('remote names and attributes are escaped',()=>assert.equal(escapeHtml(`<img src=x onerror='boom'>&`),'&lt;img src=x onerror=&#39;boom&#39;&gt;&amp;'));
+test('reads current TCGdex Cardmarket schema and handles a free card',()=>{const price=parsePrice({pricing:{cardmarket:{unit:'EUR',trend:0,avg30:.55,low:.1,updated:'2026-09-22'}}});assert.equal(price.trend,0);assert.equal(price.avg30,.55);assert.equal(parsePrice({pricing:{cardmarket:{unit:'USD',trend:12}}}),null);});
+test('keeps legacy trendPrice compatibility',()=>assert.equal(parsePrice({cardmarket:{prices:{trendPrice:3.5,lowPrice:2}}}).trend,3.5));
+test('validates import and removes invalid quantities / IDs',()=>{assert.deepEqual(readCollection({'sv01-001':2,'<script>':1,'fake':-5,'other':'3','huge':10001}),{'sv01-001':2});});
+test('images only use explicit TCGdex asset URLs',()=>{assert.deepEqual(imageUrls('https://assets.tcgdex.net/fr/swsh/swsh3/136'),['https://assets.tcgdex.net/fr/swsh/swsh3/136/low.webp','https://assets.tcgdex.net/fr/swsh/swsh3/136/low.png']);assert.deepEqual(imageUrls('https://unknown.example/card'),[]);});
+test('price filtering does not turn missing prices into zeros',()=>{assert.equal(cardMatchesType({name:'Pikachu'},'over10',null),false);assert.equal(cardMatchesType({name:'Pikachu'},'over10',12),true);});
+test('stable numeric sorting with unknown prices at the end',()=>{const cards=[{id:'x-10',name:'A',localId:'010'},{id:'x-2',name:'B',localId:'002'},{id:'x-3',name:'C',localId:'003'}];assert.deepEqual(sortCards(cards,'price-desc',{'x-2':{trend:4},'x-3':{trend:0}}).map(c=>c.id),['x-2','x-3','x-10']);assert.deepEqual(sortCards(cards,'number',{}).map(c=>c.id),['x-2','x-3','x-10']);});
+test('EUR formatting is French',()=>assert.match(formatEuro(10.5),/10,50/));
+import fs from 'node:fs';
+const root=new URL('../',import.meta.url);
+test('manifest declares present 192px and 512px PNG icons',()=>{const manifest=JSON.parse(fs.readFileSync(new URL('manifest.webmanifest',root),'utf8'));assert.equal(manifest.display,'standalone');for(const size of [192,512]){const icon=manifest.icons.find(icon=>icon.sizes===`${size}x${size}`);assert.ok(icon);const bytes=fs.readFileSync(new URL(icon.src,root));assert.equal(bytes.toString('hex',0,8),'89504e470d0a1a0a');assert.equal(bytes.readUInt32BE(16),size);assert.equal(bytes.readUInt32BE(20),size);}});
+test('app shell assets listed by service worker exist',()=>{const shell=fs.readFileSync(new URL('sw.js',root),'utf8');const match=shell.match(/const APP_FILES=\[([^\]]+)\]/);assert.ok(match);for(const source of match[1].matchAll(/'([^']+)'/g)){assert.ok(fs.existsSync(new URL(source[1],root)),`${source[1]} missing`);}});

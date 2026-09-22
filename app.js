@@ -1,327 +1,84 @@
-const TCGDEX_BASE = "https://api.tcgdex.net/v2/fr";
+import {normalize,escapeHtml,parsePrice,formatEuro,readCollection,imageUrls,cardMatchesType,sortCards,PRICE_TTL} from './core.mjs';
 
-let allSets = [];
-let universalCards = [];
-let currentCards = [];
-let activeSetId = 'universal';
-let specialFilter = 'all';
-let renderLimit = 36;
-let inspectedCardId = null;
+const API = 'https://api.tcgdex.net/v2';
+const PAGE_SIZE = 40;
+const $ = id => document.getElementById(id);
+const state = {allSets:[],allCards:[],cards:[],cardIndex:new Map(),selectedSet:'all',status:'all',type:'all',sort:'number',limit:PAGE_SIZE,layout:'comfortable',inspected:null,requestId:0,rendered:[],priceCache:{},collection:{},details:new Map(),images:new Map(),pending:new Map(),queue:[],running:0,loadSeq:0,installEvent:null};
+const money = formatEuro;
 
-let userCollection = JSON.parse(localStorage.getItem('pv_collection') || '{}');
-let pricesCache = JSON.parse(localStorage.getItem('pv_prices') || '{}');
+function readStorage(key, fallback) { try {return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;}catch{return fallback;} }
+function saveStorage(key, value) {try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{showToast('Espace local saturé : exportez votre collection.');return false;} }
+state.collection = readCollection(readStorage('pv_collection',{}));
+const legacyPrices = readStorage('pv_prices',{});
+for(const [id,p] of Object.entries(legacyPrices)) if(p && Number.isFinite(Number(p.trend))) state.priceCache[id]={trend:Number(p.trend),avg30:p.avg30??null,low:p.low??null,updated:null,fetchedAt:0};
+state.priceCache={...state.priceCache,...readStorage('pv_prices_v2',{})};
 
-// Dictionnaire de correspondances phonétiques et sans accents
-const ALIASES = {
-  'elector': 'electhor',
-  'flamigator': 'flamigator',
-  'mewtwo': 'mewtwo',
-  'tortank': 'tortank',
-  'dracaufeu': 'dracaufeu'
-};
+function showToast(message){const toast=$('toast');toast.textContent=message;toast.hidden=false;clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.hidden=true,3600);}
+function queueTask(task){return new Promise((resolve,reject)=>{state.queue.push({task,resolve,reject});runQueue();});}
+function runQueue(){while(state.running<3 && state.queue.length){const job=state.queue.shift();state.running++;Promise.resolve().then(job.task).then(job.resolve,job.reject).finally(()=>{state.running--;runQueue();});}}
+async function getJSON(path,{signal}={}) {const res=await fetch(`${API}/${path}`,{signal});if(!res.ok)throw new Error(`TCGdex ${res.status}`);return res.json();}
+function setNetwork(){const offline=!navigator.onLine;$('network-indicator').hidden=!offline;if(offline) $('network-indicator').textContent='Mode hors connexion';}
+function isFreshPrice(id){const p=state.priceCache[id];return p&&Date.now()-p.fetchedAt<PRICE_TTL;}
+function getTrend(id){const n=state.priceCache[id]?.trend;return Number.isFinite(n)?n:null;}
+function persistPrices(){try{localStorage.setItem('pv_prices_v2',JSON.stringify(state.priceCache));}catch{ // Prices are replaceable; keep the collection safe.
+  const entries=Object.entries(state.priceCache).sort((a,b)=>(b[1].fetchedAt||0)-(a[1].fetchedAt||0)).slice(0,300);
+  state.priceCache=Object.fromEntries(entries);
+  try{localStorage.setItem('pv_prices_v2',JSON.stringify(state.priceCache));}catch{}
+}}
+let priceSaveTimer;
+function rememberPrice(id,detail){const price=parsePrice(detail);state.priceCache[id]=price||{trend:null,avg30:null,low:null,updated:null,fetchedAt:Date.now()};clearTimeout(priceSaveTimer);priceSaveTimer=setTimeout(persistPrices,700);updateSummary();updateTilePrice(id);if(state.inspected===id)updateDialogPrice(id);if(state.sort.startsWith('price')||state.type.startsWith('over'))scheduleRender();}
 
-function cleanStr(s) {
-  if (!s) return '';
-  let c = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-  Object.entries(ALIASES).forEach(([a, t]) => {
-    if (c.startsWith(a)) c = c.replace(a, t);
-  });
-  return c;
+function updateSummary(){let count=0,unique=0,total=0;for(const [id,qty]of Object.entries(state.collection)){count+=qty;unique++;const trend=getTrend(id);if(trend!==null)total+=trend*qty;}$('owned-total').textContent=count.toLocaleString('fr-FR');$('owned-unique').textContent=unique.toLocaleString('fr-FR');$('portfolio-value').textContent=money(total);}
+function closeSidebar(){ $('sidebar').classList.remove('is-open');$('sidebar-scrim').hidden=true;$('sidebar-open').setAttribute('aria-expanded','false'); }
+function openSidebar(){ $('sidebar').classList.add('is-open');$('sidebar-scrim').hidden=false;$('sidebar-open').setAttribute('aria-expanded','true');$('sidebar-close').focus(); }
+function renderSets(){const query=normalize($('set-search').value);const list=state.allSets.filter(s=>normalize(`${s.name} ${s.id}`).includes(query));$('sets-list').innerHTML=list.length?list.map(s=>`<button type="button" class="set-button ${s.id===state.selectedSet?'is-selected':''}" data-set="${escapeHtml(s.id)}" aria-pressed="${s.id===state.selectedSet}"><span title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</span><span class="set-count">${escapeHtml(s.cardCount?.total??'')}</span></button>`).join(''):'<p class="hint">Aucune extension trouvée.</p>';$('all-sets').classList.toggle('is-selected',state.selectedSet==='all');$('all-sets').setAttribute('aria-pressed',String(state.selectedSet==='all'));}
+function indexCards(cards){for(const c of cards)state.cardIndex.set(c.id,c);}
+async function loadCatalog(){ $('counter').textContent='Chargement du catalogue…';$('cards-grid').setAttribute('aria-busy','true');const [sets,cards]=await Promise.allSettled([getJSON('fr/sets'),getJSON('fr/cards')]);if(sets.status==='fulfilled'){state.allSets=sets.value.sort((a,b)=>String(b.releaseDate||'').localeCompare(String(a.releaseDate||'')));renderSets();}else $('sets-list').innerHTML='<p class="hint">Extensions indisponibles. Réessayez en ligne.</p>';
+  if(cards.status==='fulfilled'){$('empty-state').querySelector('h2').textContent='Aucune carte trouvée';$('empty-state').querySelector('p').textContent='Modifiez votre recherche ou vos filtres.';$('clear-filters').textContent='Réinitialiser les filtres';delete $('clear-filters').dataset.action;state.allCards=cards.value;state.cards=cards.value;indexCards(cards.value);$('all-sets-count').textContent=cards.value.length.toLocaleString('fr-FR');$('set-subtitle').textContent='Retrouvez chaque carte, série par série.';renderGrid();}else{state.cards=[];renderGrid();$('counter').textContent='Catalogue indisponible hors connexion : ouvrez-le une première fois en ligne.';$('empty-state').querySelector('h2').textContent='Catalogue indisponible';$('empty-state').querySelector('p').textContent='Connectez-vous puis réessayez.';$('clear-filters').textContent='Réessayer';$('clear-filters').dataset.action='retry';$('empty-state').hidden=false;} }
+async function selectSet(id){const sequence=++state.requestId;closeSidebar();state.selectedSet=id;state.limit=PAGE_SIZE;const set=state.allSets.find(s=>s.id===id);$('current-set-title').textContent=id==='all'?'Toutes les cartes':set?.name||id;$('set-subtitle').textContent=id==='all'?'Retrouvez chaque carte, série par série.':`${set?.cardCount?.total??'—'} cartes dans cette extension`;renderSets();if(id==='all'){state.cards=state.allCards;renderGrid();return;}$('counter').textContent='Chargement de l’extension…';$('cards-grid').replaceChildren();$('cards-grid').setAttribute('aria-busy','true');try{const detail=await getJSON(`fr/sets/${encodeURIComponent(id)}`);if(sequence!==state.requestId)return;state.cards=detail.cards||[];indexCards(state.cards);renderGrid();}catch{if(sequence!==state.requestId)return;state.cards=[];renderGrid();$('counter').textContent='Extension momentanément indisponible.';showToast('Cette extension ne peut pas être chargée.');}}
+function filteredCards(){const query=normalize($('card-search').value);const found=state.cards.filter(c=>{if(query && !normalize(`${c.name} ${c.localId} ${c.id}`).includes(query))return false;const quantity=state.collection[c.id]||0;if(state.status==='owned'&&!quantity)return false;if(state.status==='missing'&&quantity)return false;return cardMatchesType(c,state.type,getTrend(c.id));});return sortCards(found,state.sort,state.priceCache);}
+function ghostMarkup(){return '<div class="card-ghost" aria-hidden="true"><span>◈</span><small>Illustration indisponible</small></div>';}
+function cardMarkup(c){const quantity=state.collection[c.id]||0;const img=state.images.get(c.id)?.base??c.image;const cached=state.images.get(c.id);const candidate=img&&!cached?.missing?imageUrls(img)[0]:null;const price=getTrend(c.id);return `<article class="card-tile" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup()}<img class="card-art" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" ${candidate?`data-src="${escapeHtml(candidate)}"`:''}><span class="price-pill" data-role="price">${price!==null?money(price):'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;}
+let renderTimer;
+function scheduleRender(){clearTimeout(renderTimer);renderTimer=setTimeout(renderGrid,190);}
+function renderGrid(){const list=filteredCards();state.rendered=list.slice(0,state.limit);$('counter').textContent=`${list.length.toLocaleString('fr-FR')} carte${list.length>1?'s':''} · ${state.rendered.length.toLocaleString('fr-FR')} affichée${state.rendered.length>1?'s':''}`;$('cards-grid').innerHTML=state.rendered.map(cardMarkup).join('');$('cards-grid').setAttribute('aria-busy','false');$('empty-state').hidden=list.length>0;$('load-more').hidden=state.rendered.length>=list.length;observeTiles();}
+function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id)tile.querySelector('[data-role=price]').textContent=getTrend(id)===null?'Cote —':money(getTrend(id));}
+function updateTileQuantity(id){const qty=state.collection[id]||0;for(const tile of $('cards-grid').querySelectorAll('.card-tile')){if(tile.dataset.id!==id)continue;tile.dataset.owned=String(qty>0);const badge=tile.querySelector('[data-role=owned]');if(qty){if(badge)badge.textContent=`×${qty}`;else tile.querySelector('.card-open').insertAdjacentHTML('beforeend',`<span class="owned-pill" data-role="owned">×${qty}</span>`);}else badge?.remove();tile.querySelector('[data-action=minus]').hidden=!qty;}}
+function changeQuantity(id,delta){const old=state.collection[id]||0;const next=Math.max(0,Math.min(9999,old+delta));if(next===old)return;if(next)state.collection[id]=next;else delete state.collection[id];if(!saveStorage('pv_collection',state.collection)){if(old)state.collection[id]=old;else delete state.collection[id];return;}updateSummary();updateTileQuantity(id);if(state.inspected===id)updateDialogQuantity(id);if(state.status!=='all')renderGrid();}
+
+const imageObserver=('IntersectionObserver'in window)?new IntersectionObserver(entries=>{for(const e of entries){if(!e.isIntersecting)continue;imageObserver.unobserve(e.target);activateTile(e.target);}}, {rootMargin:'220px 0px'}):null;
+function observeTiles(){for(const tile of $('cards-grid').querySelectorAll('.card-tile')){if(imageObserver)imageObserver.observe(tile);else activateTile(tile);}}
+function applyImage(img,url){if(!img||!img.isConnected||!url)return;img.dataset.src=url;img.hidden=false;img.src=url;}
+function activateTile(tile){const id=tile.dataset.id;const c=state.cardIndex.get(id);if(!c)return;const img=tile.querySelector('img.card-art');const cached=state.images.get(id);const url=imageUrls(cached?.base??c.image)[0];if(url&&!cached?.missing)applyImage(img,url);if(!isFreshPrice(id)||(!url&&!cached?.missing))requestDetail(id).catch(()=>{});}
+function requestDetail(id){if(state.pending.has(id))return state.pending.get(id);const promise=queueTask(async()=>{let detail=state.details.get(id);if(!detail){detail=await getJSON(`fr/cards/${encodeURIComponent(id)}`);state.details.set(id,detail);}if(!isFreshPrice(id))rememberPrice(id,detail);if(detail.rarity){const card=state.cardIndex.get(id);if(card)card.rarity=detail.rarity;}
+    const card=state.cardIndex.get(id);if(!card?.image&&!state.images.has(id)){if(detail.image)applyCardBase(id,detail.image);else await findEnglishImage(id);}else if(detail.image && !state.images.has(id))applyCardBase(id,detail.image);
+    return detail;});state.pending.set(id,promise);promise.finally(()=>state.pending.delete(id)).catch(()=>{});return promise;}
+function applyCardBase(id,base){const urls=imageUrls(base);if(!urls.length){state.images.set(id,{missing:true});return;}state.images.set(id,{base,missing:false});for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const img=tile.querySelector('img');if(img&&!img.classList.contains('is-loaded'))applyImage(img,urls[0]);}if(state.inspected===id)applyDialogImage(base);}
+async function findEnglishImage(id){try{const en=await getJSON(`en/cards/${encodeURIComponent(id)}`);if(en.image){applyCardBase(id,en.image);return en.image;}}catch{}state.images.set(id,{missing:true});return null;}
+function onImageError(img){if(!img?.isConnected)return;const tile=img.closest('.card-tile');const id=tile?.dataset.id??state.inspected;if(!id)return;const base=state.images.get(id)?.base??state.cardIndex.get(id)?.image;const tried=img.dataset.src||img.src;const urls=imageUrls(base,img.id==='dialog-image'?'high':'low');const next=urls.find(u=>u!==tried && !img.dataset.failed?.split('|').includes(u));img.dataset.failed=[img.dataset.failed,tried].filter(Boolean).join('|');if(next){applyImage(img,next);return;}
+  // A failed French image isn't necessarily missing in another language.
+  if(img.dataset.englishTried==='yes'){img.hidden=true;state.images.set(id,{missing:true});return;}
+  img.dataset.englishTried='yes';queueTask(()=>findEnglishImage(id)).then(enBase=>{if(enBase&&img.isConnected){const enUrl=imageUrls(enBase,img.id==='dialog-image'?'high':'low')[0];if(enUrl!==tried)applyImage(img,enUrl);else img.hidden=true;}else img.hidden=true;}).catch(()=>img.hidden=true);
 }
+function onImageLoad(img){img.classList.add('is-loaded');}
 
-// Initialisation
-async function init() {
-  setupEventListeners();
-  updatePortfolioHeader();
-
-  try {
-    const resSets = await fetch(`${TCGDEX_BASE}/sets`);
-    allSets = await resSets.json();
-    renderSetsList(allSets);
-
-    const resCards = await fetch(`${TCGDEX_BASE}/cards`);
-    universalCards = await resCards.json();
-    currentCards = universalCards;
-    renderGrid();
-  } catch (err) {
-    document.getElementById('counter-stats').textContent = "Erreur de connexion aux serveurs TCGdex";
-  }
+function updateDialogQuantity(id){const quantity=state.collection[id]||0;$('dialog-quantity').textContent=`${quantity} exemplaire${quantity>1?'s':''}`;$('dialog-minus').disabled=quantity===0;}
+function updateDialogPrice(id){const p=state.priceCache[id];$('dialog-price').textContent=p?.trend!=null?money(p.trend):'Non cotée';$('dialog-avg').textContent=money(p?.avg30);$('dialog-low').textContent=money(p?.low);$('dialog-price-date').textContent=p?.updated?`Prix mis à jour : ${new Date(p.updated).toLocaleDateString('fr-FR')}`:'Estimation indicative, selon les données disponibles.';}
+function applyDialogImage(base){const url=imageUrls(base,'high')[0];const img=$('dialog-image');img.classList.remove('is-loaded');img.dataset.failed='';img.dataset.englishTried='no';img.hidden=true;if(url)applyImage(img,url);}
+async function openDialog(id){const card=state.cardIndex.get(id);if(!card)return;state.inspected=id;$('dialog-title').textContent=card.name;$('dialog-subtitle').textContent=`${state.allSets.find(s=>s.id===id.split('-')[0])?.name||card.set?.name||'Carte Pokémon'} · № ${card.localId}`;$('dialog-rarity').textContent=card.rarity||'Carte de collection';updateDialogQuantity(id);updateDialogPrice(id);const image=state.images.get(id)?.base??card.image;applyDialogImage(image);$('card-dialog').hidden=false;document.body.style.overflow='hidden';$('dialog-close').focus();try{const detail=await requestDetail(id);if(state.inspected!==id)return;$('dialog-title').textContent=detail.name||card.name;$('dialog-subtitle').textContent=`${detail.set?.name||'Carte Pokémon'} · № ${detail.localId||card.localId}`;$('dialog-rarity').textContent=detail.rarity||'Carte de collection';updateDialogPrice(id);const base=state.images.get(id)?.base??detail.image;if(base)applyDialogImage(base);}catch{if(state.inspected===id)showToast('Fiche détaillée indisponible hors connexion.');}}
+function closeDialog(){state.inspected=null;$('card-dialog').hidden=true;document.body.style.overflow='';document.querySelector('.card-open:focus')?.focus();}
+function setStatus(value){state.status=value;state.limit=PAGE_SIZE;for(const b of $('status-filters').querySelectorAll('button')){const active=b.dataset.status===value;b.classList.toggle('is-active',active);b.setAttribute('aria-pressed',String(active));}renderGrid();}
+function setLayout(value){state.layout=value;$('cards-grid').dataset.layout=value;for(const b of document.querySelectorAll('[data-layout]')){if(b.tagName!=='BUTTON')continue;const active=b.dataset.layout===value;b.classList.toggle('is-active',active);b.setAttribute('aria-pressed',String(active));}}
+function switchTab(tab){const cards=tab==='cards';$('catalog').hidden=!cards;$('guide').hidden=cards;for(const [id,active]of [['tab-cards',cards],['tab-guide',!cards]]){$(id).classList.toggle('is-active',active);$(id).setAttribute('aria-selected',String(active));}if(!cards)closeSidebar();}
+function resetFilters(){if($('clear-filters').dataset.action==='retry'){delete $('clear-filters').dataset.action;loadCatalog();return;}$('card-search').value='';$('sort-select').value='number';$('type-select').value='all';state.type='all';state.sort='number';setStatus('all');}
+function exportCollection(){const content=JSON.stringify({format:'pokevault-collection',version:1,exportedAt:new Date().toISOString(),collection:state.collection},null,2);const blob=new Blob([content],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`pokevault-${new Date().toISOString().slice(0,10)}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);showToast('Collection exportée.');}
+async function importCollection(file){if(!file)return;if(file.size>2*1024*1024){showToast('Fichier trop volumineux (2 Mo maximum).');return;}try{const data=JSON.parse(await file.text());if(data?.format!=='pokevault-collection'||data.version!==1||typeof data.collection!=='object'||!data.collection||Array.isArray(data.collection))throw Error('Format de sauvegarde non reconnu');const collection=readCollection(data.collection);if(!Object.keys(collection).length&&Object.keys(data.collection).length)throw Error('Aucune carte valide dans la sauvegarde');if(!window.confirm('Remplacer votre collection locale par celle du fichier ? Exportez votre collection actuelle avant de continuer.'))return;if(!saveStorage('pv_collection',collection))return;state.collection=collection;updateSummary();renderGrid();showToast('Collection importée.');}catch(error){showToast(error.message||'Impossible de lire cette sauvegarde.');}finally{$('import-file').value='';}}
+function installPWA(){if(state.installEvent){state.installEvent.prompt();state.installEvent.userChoice.finally(()=>{state.installEvent=null;$('install-btn').hidden=true;});}else showToast('Sur iPhone/iPad : Partager → Sur l’écran d’accueil.');}
+function registerSW(){if('serviceWorker'in navigator && (location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+function bindEvents(){ $('sidebar-open').addEventListener('click',openSidebar);$('sidebar-close').addEventListener('click',closeSidebar);$('sidebar-scrim').addEventListener('click',closeSidebar);$('set-search').addEventListener('input',renderSets);$('sets-list').addEventListener('click',event=>{const target=event.target.closest('[data-set]');if(target)selectSet(target.dataset.set);});$('all-sets').addEventListener('click',()=>selectSet('all'));
+  let searchTimer;$('card-search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.limit=PAGE_SIZE;renderGrid();},145);});$('sort-select').addEventListener('change',event=>{state.sort=event.target.value;renderGrid();});$('type-select').addEventListener('change',event=>{state.type=event.target.value;state.limit=PAGE_SIZE;renderGrid();});$('status-filters').addEventListener('click',event=>{const btn=event.target.closest('[data-status]');if(btn)setStatus(btn.dataset.status);});document.querySelector('.layout-switch').addEventListener('click',event=>{const btn=event.target.closest('button[data-layout]');if(btn)setLayout(btn.dataset.layout);});$('load-more').addEventListener('click',()=>{state.limit+=PAGE_SIZE;renderGrid();});$('clear-filters').addEventListener('click',resetFilters);
+  $('cards-grid').addEventListener('click',event=>{const btn=event.target.closest('[data-action]');if(!btn)return;const id=btn.dataset.id;if(btn.dataset.action==='open')openDialog(id);else changeQuantity(id,btn.dataset.action==='plus'?1:-1);});$('cards-grid').addEventListener('load',event=>{if(event.target.matches('img.card-art'))onImageLoad(event.target);},true);$('cards-grid').addEventListener('error',event=>{if(event.target.matches('img.card-art'))onImageError(event.target);},true);
+  $('tab-cards').addEventListener('click',()=>switchTab('cards'));$('tab-guide').addEventListener('click',()=>switchTab('guide'));$('dialog-close').addEventListener('click',closeDialog);$('card-dialog').addEventListener('click',event=>{if(event.target.id==='card-dialog')closeDialog();});$('dialog-image').addEventListener('load',event=>onImageLoad(event.target));$('dialog-image').addEventListener('error',event=>onImageError(event.target));$('dialog-plus').addEventListener('click',()=>{if(state.inspected)changeQuantity(state.inspected,1);});$('dialog-minus').addEventListener('click',()=>{if(state.inspected)changeQuantity(state.inspected,-1);});document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeDialog();closeSidebar();}if(event.key==='Tab'&&!$('card-dialog').hidden){const focusable=[...$('card-dialog').querySelectorAll('button:not([disabled])')];const first=focusable[0],last=focusable[focusable.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
+  $('export-btn').addEventListener('click',exportCollection);$('import-btn').addEventListener('click',()=>$('import-file').click());$('import-file').addEventListener('change',e=>importCollection(e.target.files[0]));$('install-btn').addEventListener('click',installPWA);window.addEventListener('online',setNetwork);window.addEventListener('offline',setNetwork);window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installEvent=e;$('install-btn').hidden=false;});if(/iPhone|iPad|iPod/.test(navigator.userAgent)&&!navigator.standalone)$('install-btn').hidden=false;
 }
-
-function renderSetsList(sets) {
-  const container = document.getElementById('sets-list');
-  container.innerHTML = sets.map(s => `
-    <button onclick="selectSet('${s.id}', '${s.name.replace(/'/g, "\\'")}')" class="w-full text-left p-2 rounded-xl border border-white/5 hover:bg-white/5 flex items-center justify-between text-slate-300">
-      <span class="truncate">${s.name}</span>
-      <span class="text-[10px] text-slate-500">${s.cardCount?.total || ''}</span>
-    </button>
-  `).join('');
-}
-
-function filterSetsList() {
-  const q = cleanStr(document.getElementById('filter-sets-input').value);
-  renderSetsList(allSets.filter(s => cleanStr(s.name).includes(q) || cleanStr(s.id).includes(q)));
-}
-
-async function selectSet(setId, setName) {
-  activeSetId = setId;
-  document.getElementById('header-set-label').textContent = setName;
-  document.getElementById('sidebar').classList.add('-translate-x-full');
-  renderLimit = 36;
-
-  if (setId === 'universal') {
-    currentCards = universalCards;
-    renderGrid();
-    return;
-  }
-
-  document.getElementById('counter-stats').textContent = 'Chargement de l’extension...';
-  try {
-    const res = await fetch(`${TCGDEX_BASE}/sets/${setId}`);
-    const data = await res.json();
-    currentCards = data.cards || [];
-    renderGrid();
-  } catch {
-    document.getElementById('counter-stats').textContent = 'Erreur set indisponible';
-  }
-}
-
-function getFilteredList() {
-  const q = cleanStr(document.getElementById('search-input').value);
-  const status = document.getElementById('status-select').value;
-  const sort = document.getElementById('sort-select').value;
-
-  return currentCards.filter(c => {
-    const name = cleanStr(c.name);
-    const matchQ = !q || name.includes(q) || name.replace(/th/g, 't').includes(q.replace(/th/g, 't')) || cleanStr(c.id).includes(q) || String(c.localId) === q;
-    if (!matchQ) return false;
-
-    const count = userCollection[c.id] || 0;
-    if (status === 'owned' && count <= 0) return false;
-    if (status === 'missing' && count > 0) return false;
-
-    const p = pricesCache[c.id]?.trend || 0;
-    const lowName = (c.name || '').toLowerCase();
-    const rarity = (c.rarity || '').toLowerCase();
-
-    switch (specialFilter) {
-      case 'ex': return (lowName.includes(' ex') || lowName.includes('-ex') || lowName.endsWith('ex')) && !lowName.includes('m-') && !lowName.includes('méga');
-      case 'mega': return lowName.includes('m-') || lowName.includes('méga') || lowName.includes('mega');
-      case 'v_vmax': return lowName.includes(' v') || lowName.includes('vmax') || lowName.includes('vstar');
-      case 'gx': return lowName.includes(' gx');
-      case 'ar_sar': return rarity.includes('illustration') || rarity.includes('ar') || rarity.includes('sar');
-      case 'secret': return rarity.includes('secr') || rarity.includes('gold');
-      case 'over10': return p >= 10;
-      case 'over50': return p >= 50;
-      default: return true;
-    }
-  }).sort((a, b) => {
-    const pa = pricesCache[a.id]?.trend || 0;
-    const pb = pricesCache[b.id]?.trend || 0;
-    if (sort === 'price-desc') return pb - pa;
-    if (sort === 'price-asc') return pa - pb;
-    if (sort === 'name-asc') return (a.name || '').localeCompare(b.name || '');
-    return (parseInt(String(a.localId).replace(/\D/g, ''), 10) || 0) - (parseInt(String(b.localId).replace(/\D/g, ''), 10) || 0);
-  });
-}
-
-function renderGrid() {
-  const list = getFilteredList();
-  const displayed = list.slice(0, renderLimit);
-  const grid = document.getElementById('cards-grid');
-
-  document.getElementById('counter-stats').textContent = `${list.length} cartes affichées`;
-  document.getElementById('load-more-wrap').classList.toggle('hidden', displayed.length >= list.length);
-
-  grid.innerHTML = displayed.map(c => {
-    const count = userCollection[c.id] || 0;
-    const isOwned = count > 0;
-    const price = pricesCache[c.id]?.trend ? `${pricesCache[c.id].trend.toFixed(2)} €` : '—';
-    const img = c.image ? `${c.image}/low.webp` : `https://images.pokemontcg.io/${activeSetId}/${c.localId}.png`;
-
-    return `
-      <div class="bg-[#131b2e] border ${isOwned ? 'border-emerald-500' : 'border-white/10'} rounded-2xl p-2.5 flex flex-col justify-between gap-2 shadow-lg transition active:scale-[0.98]">
-        <div onclick="openInspector('${c.id}')" class="relative aspect-[1/1.4] rounded-xl overflow-hidden bg-black/50 cursor-pointer flex items-center justify-center">
-          <img src="${img}" alt="${c.name}" loading="lazy" onerror="this.onerror=null; this.src='${c.image ? c.image.replace('/fr/','/en/') + '/low.webp' : ''}';" class="w-full h-full object-contain">
-          <span class="absolute top-2 left-2 px-2 py-0.5 rounded-lg text-[10px] font-bold ${isOwned ? 'bg-black/85 text-amber-400' : 'bg-black/60 text-slate-300'}">${price}</span>
-          ${isOwned ? `<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-emerald-500 text-black font-black text-[10px]">x${count}</span>` : ''}
-        </div>
-        
-        <div class="flex items-center justify-between gap-1">
-          <div class="truncate">
-            <p class="font-bold text-xs truncate text-white">${c.name}</p>
-            <p class="text-[10px] text-slate-400">#${c.localId}</p>
-          </div>
-          <div class="flex items-center gap-1">
-            ${isOwned ? `<button onclick="modCount('${c.id}', -1)" class="w-7 h-7 rounded-lg bg-white/10 text-white font-bold text-xs">-</button>` : ''}
-            <button onclick="modCount('${c.id}', 1)" class="w-7 h-7 rounded-lg ${isOwned ? 'bg-emerald-500 text-black' : 'bg-white/10 text-white'} font-bold text-xs">+</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  // Récupération progressive des prix
-  fetchMissingPrices(displayed.slice(0, 15));
-}
-
-async function fetchMissingPrices(cards) {
-  for (const c of cards) {
-    if (!pricesCache[c.id]) {
-      try {
-        const res = await fetch(`${TCGDEX_BASE}/cards/${c.id}`);
-        const data = await res.json();
-        const cm = data.pricing?.cardmarket || data.cardmarket?.prices || data.cardmarket;
-        if (cm && (cm.trendPrice || cm.trend)) {
-          pricesCache[c.id] = {
-            trend: cm.trendPrice || cm.trend,
-            avg30: cm.avg30 || cm.avg,
-            low: cm.lowPrice || cm.low
-          };
-          localStorage.setItem('pv_prices', JSON.stringify(pricesCache));
-          updatePortfolioHeader();
-        }
-      } catch {}
-    }
-  }
-}
-
-function modCount(id, delta) {
-  const cur = userCollection[id] || 0;
-  const next = cur + delta;
-  if (next <= 0) delete userCollection[id];
-  else userCollection[id] = next;
-
-  localStorage.setItem('pv_collection', JSON.stringify(userCollection));
-  renderGrid();
-  updatePortfolioHeader();
-}
-
-function updatePortfolioHeader() {
-  let total = 0;
-  for (const [id, count] of Object.entries(userCollection)) {
-    if (pricesCache[id]?.trend) total += pricesCache[id].trend * count;
-  }
-  document.getElementById('header-portfolio-val').textContent = total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-}
-
-async function openInspector(id) {
-  inspectedCardId = id;
-  const modal = document.getElementById('modal');
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-  document.getElementById('modal-title').textContent = 'Chargement...';
-
-  try {
-    const res = await fetch(`${TCGDEX_BASE}/cards/${id}`);
-    const card = await res.json();
-    
-    document.getElementById('modal-title').textContent = card.name;
-    document.getElementById('modal-sub').textContent = `${card.set?.name || ''} — #${card.localId}`;
-    document.getElementById('modal-rarity').textContent = card.rarity || 'Standard';
-    document.getElementById('modal-img').src = card.image ? `${card.image}/high.webp` : '';
-
-    const cm = card.pricing?.cardmarket || card.cardmarket?.prices || card.cardmarket;
-    const trend = cm?.trendPrice || cm?.trend || pricesCache[id]?.trend;
-    document.getElementById('modal-price-trend').textContent = trend ? `${Number(trend).toFixed(2)} €` : 'N/C';
-    document.getElementById('modal-price-avg').textContent = cm?.avg30 ? `${Number(cm.avg30).toFixed(2)} €` : 'N/C';
-    document.getElementById('modal-price-low').textContent = cm?.lowPrice ? `${Number(cm.lowPrice).toFixed(2)} €` : 'N/C';
-  } catch {
-    document.getElementById('modal-title').textContent = 'Fiche indisponible';
-  }
-}
-
-function closeModal() {
-  document.getElementById('modal').classList.add('hidden');
-  document.getElementById('modal').classList.remove('flex');
-}
-
-function setupEventListeners() {
-  // Navigation tabs
-  document.getElementById('tab-btn-collection').addEventListener('click', () => switchTab('collection'));
-  document.getElementById('tab-btn-guide').addEventListener('click', () => switchTab('guide'));
-
-  // Sidebar controls
-  document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('-translate-x-full');
-  });
-  document.getElementById('btn-close-sidebar').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.add('-translate-x-full');
-  });
-  document.getElementById('btn-universal-set').addEventListener('click', () => {
-    selectSet('universal', '🌐 Toutes les cartes');
-  });
-
-  // Filtres
-  document.getElementById('filter-sets-input').addEventListener('input', filterSetsList);
-  document.getElementById('search-input').addEventListener('input', () => {
-    renderLimit = 36;
-    renderGrid();
-  });
-  document.getElementById('status-select').addEventListener('change', renderGrid);
-  document.getElementById('sort-select').addEventListener('change', renderGrid);
-
-  // Chips
-  document.querySelectorAll('.chip-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      specialFilter = e.target.dataset.filter;
-      document.querySelectorAll('.chip-btn').forEach(b => {
-        b.className = 'chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap';
-      });
-      e.target.className = 'chip-btn px-3 py-1.5 rounded-xl bg-indigo-600 text-white whitespace-nowrap';
-      renderGrid();
-    });
-  });
-
-  // Layout zoom
-  document.getElementById('zoom-comfort').addEventListener('click', () => setLayout('comfort'));
-  document.getElementById('zoom-giant').addEventListener('click', () => setLayout('giant'));
-  document.getElementById('zoom-compact').addEventListener('click', () => setLayout('compact'));
-
-  // Pagination
-  document.getElementById('btn-load-more').addEventListener('click', () => {
-    renderLimit += 36;
-    renderGrid();
-  });
-
-  // Modale boutons
-  document.getElementById('modal-btn-close').addEventListener('click', closeModal);
-  document.getElementById('modal').addEventListener('click', (e) => {
-    if (e.target.id === 'modal') closeModal();
-  });
-  document.getElementById('modal-btn-add').addEventListener('click', () => {
-    if (inspectedCardId) {
-      modCount(inspectedCardId, 1);
-      openInspector(inspectedCardId);
-    }
-  });
-  document.getElementById('modal-btn-del').addEventListener('click', () => {
-    if (inspectedCardId) {
-      modCount(inspectedCardId, -1);
-      openInspector(inspectedCardId);
-    }
-  });
-}
-
-function setLayout(mode) {
-  const g = document.getElementById('cards-grid');
-  ['zoom-comfort', 'zoom-giant', 'zoom-compact'].forEach(id => {
-    document.getElementById(id).className = 'px-2 py-1 rounded text-slate-400 hover:text-white font-bold';
-  });
-  document.getElementById('zoom-' + mode).className = 'px-2 py-1 rounded bg-indigo-600 text-white font-bold';
-
-  if (mode === 'compact') g.className = "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-2.5";
-  else if (mode === 'giant') g.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6";
-  else g.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4";
-}
-
-function switchTab(tab) {
-  const isCol = tab === 'collection';
-  document.getElementById('cards-view').classList.toggle('hidden', !isCol);
-  document.getElementById('controls-section').classList.toggle('hidden', !isCol);
-  document.getElementById('guide-view').classList.toggle('hidden', isCol);
-  document.getElementById('tab-btn-collection').className = isCol ? 'px-3 py-1.5 rounded-lg bg-indigo-600 text-white' : 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white';
-  document.getElementById('tab-btn-guide').className = !isCol ? 'px-3 py-1.5 rounded-lg bg-indigo-600 text-white' : 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white';
-}
-
-init();
+bindEvents();setNetwork();updateSummary();registerSW();loadCatalog();

@@ -3,40 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>PokéVault Pro — iPadOS Edition</title>
+  <title>PokéVault Pro — iPadOS</title>
+  <link rel="stylesheet" href="style.css">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            iosBg: '#090d16',
-            iosSurface: '#131b2e',
-            iosCard: '#1a243b',
-            iosBlue: '#0a84ff',
-            iosGreen: '#30d158',
-            iosYellow: '#ffd60a',
-            iosRed: '#ff453a'
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    body { background-color: #090d16; -webkit-tap-highlight-color: transparent; }
-    .glass { background: rgba(19, 27, 46, 0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  </style>
 </head>
-<body class="text-slate-100 min-h-screen flex flex-col select-none">
+<body class="bg-[#090d16] text-slate-100 min-h-screen flex flex-col select-none">
 
-  <!-- TOP BAR IPADOS -->
+  <!-- TOP BARRE IPADOS -->
   <header class="sticky top-0 z-40 glass border-b border-white/10 px-4 py-3">
     <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-xl bg-white/5 active:bg-white/10 text-cyan-400">
+        <button id="btn-toggle-sidebar" class="lg:hidden p-2 rounded-xl bg-white/5 active:bg-white/10 text-cyan-400">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
         <div>
@@ -44,64 +21,64 @@
             <span class="font-black text-lg bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent">PokéVault Pro</span>
             <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">iPadOS</span>
           </div>
-          <p id="header-set-label" class="text-xs text-slate-400 truncate max-w-[200px] sm:max-w-xs">Toutes les cartes</p>
+          <p id="header-set-label" class="text-xs text-slate-400 truncate max-w-[200px] sm:max-w-xs">🌐 Toutes les cartes</p>
         </div>
       </div>
 
-      <!-- Live Portfolio Total -->
+      <!-- Total Portfolio -->
       <div class="hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-2xl bg-white/5 border border-white/10">
         <span class="text-xs text-slate-400 font-medium">Portfolio :</span>
-        <span id="header-portfolio-val" class="text-sm font-black text-iosYellow">0,00 €</span>
+        <span id="header-portfolio-val" class="text-sm font-black text-amber-400">0,00 €</span>
       </div>
 
-      <!-- Segment Tabs -->
+      <!-- Onglets Navigation -->
       <div class="flex items-center gap-1.5 bg-black/40 p-1 rounded-xl border border-white/10 text-xs font-bold">
-        <button onclick="switchTab('collection')" id="tab-collection" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white">Classeur</button>
-        <button onclick="switchTab('guide')" id="tab-guide" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white">Anti-Fausses</button>
+        <button id="tab-btn-collection" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white">Classeur</button>
+        <button id="tab-btn-guide" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white">Anti-Fausses</button>
       </div>
     </div>
   </header>
 
   <div class="flex-1 flex max-w-7xl w-full mx-auto relative">
     
-    <!-- SIDEBAR EXTENSIONS -->
+    <!-- TIROIR LATÉRAL DES EXTENSIONS -->
     <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 glass border-r border-white/10 p-4 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-200 flex flex-col gap-3">
       <div class="flex items-center justify-between pb-2 border-b border-white/10">
         <span class="font-bold text-sm text-slate-300">Séries & Extensions</span>
-        <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 p-1">✕</button>
+        <button id="btn-close-sidebar" class="lg:hidden text-slate-400 p-1">✕</button>
       </div>
 
-      <button onclick="selectSet('universal', '🌐 Toutes les cartes (Catalogue Global)')" class="w-full p-2.5 rounded-xl border text-left text-xs font-bold transition flex items-center justify-between bg-indigo-600/20 border-indigo-500 text-white">
+      <button id="btn-universal-set" class="w-full p-2.5 rounded-xl border text-left text-xs font-bold transition flex items-center justify-between bg-indigo-600/30 border-indigo-500 text-white">
         <span>🌐 Toutes les cartes</span>
         <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20">GLOBAL</span>
       </button>
 
-      <input type="text" id="filter-sets-input" oninput="filterSetsList()" placeholder="Rechercher extension (151, Pocket...)" class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+      <input type="text" id="filter-sets-input" placeholder="Filtrer extensions (151, Pocket...)" class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
 
       <div id="sets-list" class="flex-1 overflow-y-auto space-y-1 pr-1 text-xs">
         <div class="text-slate-500 p-2">Chargement des séries...</div>
       </div>
     </aside>
 
-    <!-- MAIN CONTENT -->
+    <!-- ZONE PRINCIPALE -->
     <main class="flex-1 p-4 flex flex-col gap-4 overflow-x-hidden">
       
-      <!-- CONTROLS ROW -->
+      <!-- FILTRES ET RECHERCHE -->
       <section id="controls-section" class="flex flex-col gap-3">
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-          <!-- Input Recherche insensible aux accents & alias -->
+          <!-- Recherche sans accents -->
           <div class="relative md:col-span-2">
-            <input type="text" id="search-input" oninput="handleSearch()" placeholder="Rechercher (ex: flamigator, elector, dracaufeu...)" class="w-full bg-black/40 border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500">
+            <input type="text" id="search-input" placeholder="Rechercher (flamigator, elector, dracaufeu...)" class="w-full bg-black/40 border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500">
             <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           </div>
 
-          <select id="status-select" onchange="renderGrid()" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+          <select id="status-select" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
             <option value="all">Toutes les cartes</option>
             <option value="owned">Possédées (✓)</option>
             <option value="missing">Manquantes (✗)</option>
           </select>
 
-          <select id="sort-select" onchange="renderGrid()" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+          <select id="sort-select" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
             <option value="price-desc">Cote Cardmarket (€€€ Décroissant)</option>
             <option value="price-asc">Prix le moins cher (€)</option>
             <option value="num-asc">Numéro (#1 → Fin)</option>
@@ -110,53 +87,53 @@
         </div>
 
         <!-- Chips Filtres tactiles -->
-        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 text-xs font-bold">
-          <button onclick="setSpecialFilter('all', this)" class="chip-btn px-3 py-1.5 rounded-xl bg-indigo-600 text-white whitespace-nowrap">Tous</button>
-          <button onclick="setSpecialFilter('ex', this)" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Cartes "ex" / "EX"</button>
-          <button onclick="setSpecialFilter('mega', this)" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Méga-Évolution</button>
-          <button onclick="setSpecialFilter('v_vmax', this)" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">V / VMAX / VSTAR</button>
-          <button onclick="setSpecialFilter('gx', this)" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Cartes GX</button>
-          <button onclick="setSpecialFilter('ar_sar', this)" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">AR / SAR / Alt</button>
-          <button onclick="setSpecialFilter('secret', this)" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Secrètes & Gold</button>
-          <button onclick="setSpecialFilter('over10', this)" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-amber-400 whitespace-nowrap">Cote > 10 €</button>
-          <button onclick="setSpecialFilter('over50', this)" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-orange-400 whitespace-nowrap">Cote > 50 €</button>
+        <div id="chips-container" class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 text-xs font-bold">
+          <button data-filter="all" class="chip-btn px-3 py-1.5 rounded-xl bg-indigo-600 text-white whitespace-nowrap">Tous</button>
+          <button data-filter="ex" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Cartes "ex" / "EX"</button>
+          <button data-filter="mega" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Méga-Évolution</button>
+          <button data-filter="v_vmax" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">V / VMAX / VSTAR</button>
+          <button data-filter="gx" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Cartes GX</button>
+          <button data-filter="ar_sar" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">AR / SAR / Alt</button>
+          <button data-filter="secret" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap">Secrètes & Gold</button>
+          <button data-filter="over10" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-amber-400 whitespace-nowrap">Cote > 10 €</button>
+          <button data-filter="over50" class="chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-orange-400 whitespace-nowrap">Cote > 50 €</button>
         </div>
 
-        <!-- Layout Zoom bar -->
+        <!-- Zoom et Stats -->
         <div class="flex items-center justify-between pt-1 border-t border-white/10 text-xs">
-          <span id="counter-stats" class="text-slate-400 font-medium">Chargement des cartes...</span>
+          <span id="counter-stats" class="text-slate-400 font-medium">Chargement...</span>
           <div class="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
-            <button onclick="setLayout('comfort')" id="zoom-comfort" class="px-2 py-1 rounded bg-indigo-600 text-white font-bold">Confort iPad</button>
-            <button onclick="setLayout('giant')" id="zoom-giant" class="px-2 py-1 rounded text-slate-400 hover:text-white font-bold">Géant HD</button>
-            <button onclick="setLayout('compact')" id="zoom-compact" class="px-2 py-1 rounded text-slate-400 hover:text-white font-bold">Compact</button>
+            <button id="zoom-comfort" class="px-2 py-1 rounded bg-indigo-600 text-white font-bold">Confort iPad</button>
+            <button id="zoom-giant" class="px-2 py-1 rounded text-slate-400 hover:text-white font-bold">Géant HD</button>
+            <button id="zoom-compact" class="px-2 py-1 rounded text-slate-400 hover:text-white font-bold">Compact</button>
           </div>
         </div>
       </section>
 
-      <!-- CARDS GRID -->
+      <!-- GRILLE DES CARTES -->
       <section id="cards-view" class="flex-1">
         <div id="cards-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
         <div id="load-more-wrap" class="py-8 text-center hidden">
-          <button onclick="loadMoreCards()" class="px-6 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs border border-white/10 transition">Afficher plus de cartes</button>
+          <button id="btn-load-more" class="px-6 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs border border-white/10 transition">Afficher plus de cartes</button>
         </div>
       </section>
 
-      <!-- ANTI-COUNTERFEIT GUIDE -->
-      <section id="guide-view" class="hidden max-w-3xl mx-auto space-y-4 py-4">
-        <div class="p-6 rounded-3xl bg-iosCard border border-white/10 space-y-4">
-          <h2 class="text-lg font-black text-cyan-400">Guide de Contrôle d'Authenticité</h2>
+      <!-- GUIDE ANTI-CONTREFAÇON -->
+      <section id="guide-view" class="hidden max-w-3xl mx-auto space-y-4 py-4 w-full">
+        <div class="p-6 rounded-3xl bg-[#131b2e] border border-white/10 space-y-4">
+          <h2 class="text-lg font-black text-cyan-400">Contrôle d'Authenticité</h2>
           <div class="space-y-3 text-xs leading-relaxed text-slate-300">
             <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <strong class="text-white">1. La tranche « Sandwich » :</strong> Regardez la tranche sur la tranche. Les cartes officielles possèdent une fine ligne noire centrale collée sous presse. Les fausses sont monocouches et entièrement blanches.
+              <strong class="text-white">1. Tranche « Sandwich » :</strong> Les vraies cartes possèdent une fine ligne noire centrale comprimée. Les fausses ont une tranche unie blanche.
             </div>
             <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <strong class="text-white">2. Micro-Texture :</strong> Les cartes Full Art / Secrètes / SAR officielles présentent des stries d'empreintes digitales en relief. Les contrefaçons sont plates et lisses comme un miroir.
+              <strong class="text-white">2. Micro-Texture :</strong> Les cartes Full Art / Secrètes officielles ont des stries en relief perceptibles au toucher. Les contrefaçons sont totalement lisses.
             </div>
             <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <strong class="text-white">3. Test Torche LED :</strong> Plaquez le flash d'un smartphone au dos d'une carte. La colle centrale officielle bloque la lumière à 95 %. Une fausse s'illumine comme du papier calque.
+              <strong class="text-white">3. Test Torche LED :</strong> Le dos d'une vraie carte bloque le faisceau d'un flash de smartphone à 95 %.
             </div>
             <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <strong class="text-white">4. Orthographe et Typo :</strong> Surveillez la police des PV et les accents français (« Énergie », « Dégâts »). Les fausses cartes oublient souvent les accents.
+              <strong class="text-white">4. Orthographe & Typographie :</strong> Surveillez les accents sur les majuscules (« Énergie ») et la police des PV.
             </div>
           </div>
         </div>
@@ -164,10 +141,10 @@
     </main>
   </div>
 
-  <!-- INSPECTION MODAL -->
-  <div id="modal" onclick="closeModal(event)" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
-    <div onclick="event.stopPropagation()" class="bg-iosCard border border-white/15 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 flex flex-col md:flex-row gap-6 relative shadow-2xl">
-      <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">✕</button>
+  <!-- MODALE INSPECTEUR -->
+  <div id="modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
+    <div id="modal-box" class="bg-[#131b2e] border border-white/15 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 flex flex-col md:flex-row gap-6 relative shadow-2xl">
+      <button id="modal-btn-close" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">✕</button>
       
       <div class="w-full md:w-1/2 flex items-center justify-center bg-black/40 rounded-2xl p-2 min-h-[300px]">
         <img id="modal-img" src="" alt="" class="max-h-[460px] object-contain rounded-xl">
@@ -181,7 +158,7 @@
 
           <div class="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2 text-xs">
             <div class="font-bold text-cyan-400 text-sm mb-1">Cotation Cardmarket Europe</div>
-            <div class="flex justify-between"><span class="text-slate-400">Prix Tendance :</span><span id="modal-price-trend" class="font-black text-iosYellow">-</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Prix Tendance :</span><span id="modal-price-trend" class="font-black text-amber-400">-</span></div>
             <div class="flex justify-between"><span class="text-slate-400">Moyenne 30j :</span><span id="modal-price-avg" class="font-medium text-slate-200">-</span></div>
             <div class="flex justify-between"><span class="text-slate-400">Prix le plus bas :</span><span id="modal-price-low" class="font-medium text-slate-200">-</span></div>
           </div>
@@ -195,279 +172,6 @@
     </div>
   </div>
 
-  <script>
-    const TCGDEX_BASE = "https://api.tcgdex.net/v2/fr";
-    let allSets = [];
-    let universalCards = [];
-    let currentCards = [];
-    let activeSetId = 'universal';
-    let specialFilter = 'all';
-    let currentLayout = 'comfort';
-    let renderLimit = 36;
-    let inspectedCard = null;
-
-    let userCollection = JSON.parse(localStorage.getItem('pv_collection') || '{}');
-    let pricesCache = JSON.parse(localStorage.getItem('pv_prices') || '{}');
-
-    // Normalisation accents & alias phonétiques (Flâmigator, Élector/Électhor)
-    const ALIASES = { 'elector': 'electhor', 'flamigator': 'flamigator', 'mewtwo': 'mewtwo' };
-    function cleanStr(s) {
-      if (!s) return '';
-      let c = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-      Object.entries(ALIASES).forEach(([a, t]) => { if (c.startsWith(a)) c = c.replace(a, t); });
-      return c;
-    }
-
-    async function init() {
-      try {
-        const resSets = await fetch(`${TCGDEX_BASE}/sets`);
-        allSets = await resSets.json();
-        renderSetsList(allSets);
-
-        const resCards = await fetch(`${TCGDEX_BASE}/cards`);
-        universalCards = await resCards.json();
-        currentCards = universalCards;
-        renderGrid();
-        updatePortfolioHeader();
-      } catch (err) {
-        document.getElementById('counter-stats').textContent = "Erreur de connexion API TCGdex";
-      }
-    }
-
-    function renderSetsList(sets) {
-      const container = document.getElementById('sets-list');
-      container.innerHTML = sets.map(s => `
-        <button onclick="selectSet('${s.id}', '${s.name.replace(/'/g, "\\'")}')" class="w-full text-left p-2 rounded-xl border border-white/5 hover:bg-white/5 flex items-center justify-between text-slate-300">
-          <span class="truncate">${s.name}</span>
-          <span class="text-[10px] text-slate-500">${s.cardCount?.total || ''}</span>
-        </button>
-      `).join('');
-    }
-
-    function filterSetsList() {
-      const q = cleanStr(document.getElementById('filter-sets-input').value);
-      renderSetsList(allSets.filter(s => cleanStr(s.name).includes(q) || cleanStr(s.id).includes(q)));
-    }
-
-    async function selectSet(setId, setName) {
-      activeSetId = setId;
-      document.getElementById('header-set-label').textContent = setName;
-      document.getElementById('sidebar').classList.add('-translate-x-full');
-      renderLimit = 36;
-
-      if (setId === 'universal') {
-        currentCards = universalCards;
-        renderGrid();
-        return;
-      }
-
-      document.getElementById('counter-stats').textContent = 'Chargement de l’extension...';
-      try {
-        const res = await fetch(`${TCGDEX_BASE}/sets/${setId}`);
-        const data = await res.json();
-        currentCards = data.cards || [];
-        renderGrid();
-      } catch {
-        document.getElementById('counter-stats').textContent = 'Erreur set indisponible';
-      }
-    }
-
-    function setSpecialFilter(type, btn) {
-      specialFilter = type;
-      document.querySelectorAll('.chip-btn').forEach(b => {
-        b.className = 'chip-btn px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white whitespace-nowrap';
-      });
-      btn.className = 'chip-btn px-3 py-1.5 rounded-xl bg-indigo-600 text-white whitespace-nowrap';
-      renderGrid();
-    }
-
-    function setLayout(mode) {
-      currentLayout = mode;
-      const g = document.getElementById('cards-grid');
-      ['zoom-comfort', 'zoom-giant', 'zoom-compact'].forEach(id => {
-        document.getElementById(id).className = 'px-2 py-1 rounded text-slate-400 hover:text-white font-bold';
-      });
-      document.getElementById('zoom-' + mode).className = 'px-2 py-1 rounded bg-indigo-600 text-white font-bold';
-
-      if (mode === 'compact') g.className = "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-2.5";
-      else if (mode === 'giant') g.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6";
-      else g.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4";
-    }
-
-    function getFilteredList() {
-      const q = cleanStr(document.getElementById('search-input').value);
-      const status = document.getElementById('status-select').value;
-      const sort = document.getElementById('sort-select').value;
-
-      return currentCards.filter(c => {
-        const name = cleanStr(c.name);
-        const matchQ = !q || name.includes(q) || name.replace(/th/g, 't').includes(q.replace(/th/g, 't')) || cleanStr(c.id).includes(q) || String(c.localId) === q;
-        if (!matchQ) return false;
-
-        const count = userCollection[c.id] || 0;
-        if (status === 'owned' && count <= 0) return false;
-        if (status === 'missing' && count > 0) return false;
-
-        const p = pricesCache[c.id]?.trend || 0;
-        const lowName = (c.name || '').toLowerCase();
-        const rarity = (c.rarity || '').toLowerCase();
-
-        switch (specialFilter) {
-          case 'ex': return (lowName.includes(' ex') || lowName.includes('-ex') || lowName.endsWith('ex')) && !lowName.includes('m-') && !lowName.includes('méga');
-          case 'mega': return lowName.includes('m-') || lowName.includes('méga') || lowName.includes('mega');
-          case 'v_vmax': return lowName.includes(' v') || lowName.includes('vmax') || lowName.includes('vstar');
-          case 'gx': return lowName.includes(' gx');
-          case 'ar_sar': return rarity.includes('illustration') || rarity.includes('ar') || rarity.includes('sar');
-          case 'secret': return rarity.includes('secr') || rarity.includes('gold');
-          case 'over10': return p >= 10;
-          case 'over50': return p >= 50;
-          default: return true;
-        }
-      }).sort((a, b) => {
-        const pa = pricesCache[a.id]?.trend || 0;
-        const pb = pricesCache[b.id]?.trend || 0;
-        if (sort === 'price-desc') return pb - pa;
-        if (sort === 'price-asc') return pa - pb;
-        if (sort === 'name-asc') return (a.name || '').localeCompare(b.name || '');
-        return (parseInt(String(a.localId).replace(/\D/g, ''), 10) || 0) - (parseInt(String(b.localId).replace(/\D/g, ''), 10) || 0);
-      });
-    }
-
-    function renderGrid() {
-      const list = getFilteredList();
-      const displayed = list.slice(0, renderLimit);
-      const grid = document.getElementById('cards-grid');
-
-      document.getElementById('counter-stats').textContent = `${list.length} cartes affichées`;
-      document.getElementById('load-more-wrap').classList.toggle('hidden', displayed.length >= list.length);
-
-      grid.innerHTML = displayed.map(c => {
-        const count = userCollection[c.id] || 0;
-        const isOwned = count > 0;
-        const price = pricesCache[c.id]?.trend ? `${pricesCache[c.id].trend.toFixed(2)} €` : '—';
-        const img = c.image ? `${c.image}/low.webp` : `https://images.pokemontcg.io/${activeSetId}/${c.localId}.png`;
-
-        return `
-          <div class="bg-iosCard border ${isOwned ? 'border-iosGreen' : 'border-white/10'} rounded-2xl p-2.5 flex flex-col justify-between gap-2 shadow-lg transition active:scale-[0.98]">
-            <div onclick="openInspector('${c.id}')" class="relative aspect-[1/1.4] rounded-xl overflow-hidden bg-black/50 cursor-pointer flex items-center justify-center">
-              <img src="${img}" alt="${c.name}" loading="lazy" onerror="this.onerror=null; this.src='${c.image ? c.image.replace('/fr/','/en/') + '/low.webp' : ''}';" class="w-full h-full object-contain">
-              <span class="absolute top-2 left-2 px-2 py-0.5 rounded-lg text-[10px] font-bold ${isOwned ? 'bg-black/85 text-iosYellow' : 'bg-black/60 text-slate-300'}">${price}</span>
-              ${isOwned ? `<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-iosGreen text-black font-black text-[10px]">x${count}</span>` : ''}
-            </div>
-            
-            <div class="flex items-center justify-between gap-1">
-              <div class="truncate">
-                <p class="font-bold text-xs truncate text-white">${c.name}</p>
-                <p class="text-[10px] text-slate-400">#${c.localId}</p>
-              </div>
-              <div class="flex items-center gap-1">
-                ${isOwned ? `<button onclick="modCount('${c.id}', -1)" class="w-7 h-7 rounded-lg bg-white/10 text-white font-bold text-xs">-</button>` : ''}
-                <button onclick="modCount('${c.id}', 1)" class="w-7 h-7 rounded-lg ${isOwned ? 'bg-iosGreen text-black' : 'bg-white/10 text-white'} font-bold text-xs">+</button>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      // Pré-chargement des prix Cardmarket en arrière-plan
-      fetchMissingPrices(displayed.slice(0, 15));
-    }
-
-    async function fetchMissingPrices(cards) {
-      for (const c of cards) {
-        if (!pricesCache[c.id]) {
-          try {
-            const res = await fetch(`${TCGDEX_BASE}/cards/${c.id}`);
-            const data = await res.json();
-            const cm = data.pricing?.cardmarket || data.cardmarket?.prices || data.cardmarket;
-            if (cm && (cm.trendPrice || cm.trend)) {
-              pricesCache[c.id] = {
-                trend: cm.trendPrice || cm.trend,
-                avg30: cm.avg30 || cm.avg,
-                low: cm.lowPrice || cm.low
-              };
-              localStorage.setItem('pv_prices', JSON.stringify(pricesCache));
-              updatePortfolioHeader();
-            }
-          } catch {}
-        }
-      }
-    }
-
-    function modCount(id, delta) {
-      const cur = userCollection[id] || 0;
-      const next = cur + delta;
-      if (next <= 0) delete userCollection[id];
-      else userCollection[id] = next;
-      localStorage.setItem('pv_collection', JSON.stringify(userCollection));
-      renderGrid();
-      updatePortfolioHeader();
-    }
-
-    function updatePortfolioHeader() {
-      let total = 0;
-      for (const [id, count] of Object.entries(userCollection)) {
-        if (pricesCache[id]?.trend) total += pricesCache[id].trend * count;
-      }
-      document.getElementById('header-portfolio-val').textContent = total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-    }
-
-    async function openInspector(id) {
-      document.getElementById('modal').classList.remove('hidden');
-      document.getElementById('modal').classList.add('flex');
-      document.getElementById('modal-title').textContent = 'Chargement...';
-
-      try {
-        const res = await fetch(`${TCGDEX_BASE}/cards/${id}`);
-        inspectedCard = await res.json();
-        
-        document.getElementById('modal-title').textContent = inspectedCard.name;
-        document.getElementById('modal-sub').textContent = `${inspectedCard.set?.name || ''} — #${inspectedCard.localId}`;
-        document.getElementById('modal-rarity').textContent = inspectedCard.rarity || 'Standard';
-        document.getElementById('modal-img').src = inspectedCard.image ? `${inspectedCard.image}/high.webp` : '';
-
-        const cm = inspectedCard.pricing?.cardmarket || inspectedCard.cardmarket?.prices || inspectedCard.cardmarket;
-        const trend = cm?.trendPrice || cm?.trend || pricesCache[id]?.trend;
-        document.getElementById('modal-price-trend').textContent = trend ? `${Number(trend).toFixed(2)} €` : 'N/C';
-        document.getElementById('modal-price-avg').textContent = cm?.avg30 ? `${Number(cm.avg30).toFixed(2)} €` : 'N/C';
-        document.getElementById('modal-price-low').textContent = cm?.lowPrice ? `${Number(cm.lowPrice).toFixed(2)} €` : 'N/C';
-
-        document.getElementById('modal-btn-add').onclick = () => { modCount(id, 1); openInspector(id); };
-        document.getElementById('modal-btn-del').onclick = () => { modCount(id, -1); openInspector(id); };
-      } catch {
-        document.getElementById('modal-title').textContent = 'Fiche indisponible';
-      }
-    }
-
-    function closeModal() {
-      document.getElementById('modal').classList.add('hidden');
-      document.getElementById('modal').classList.remove('flex');
-    }
-
-    function handleSearch() {
-      renderLimit = 36;
-      renderGrid();
-    }
-
-    function loadMoreCards() {
-      renderLimit += 36;
-      renderGrid();
-    }
-
-    function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('-translate-x-full');
-    }
-
-    function switchTab(tab) {
-      const isCol = tab === 'collection';
-      document.getElementById('cards-view').classList.toggle('hidden', !isCol);
-      document.getElementById('controls-section').classList.toggle('hidden', !isCol);
-      document.getElementById('guide-view').classList.toggle('hidden', isCol);
-      document.getElementById('tab-collection').className = isCol ? 'px-3 py-1.5 rounded-lg bg-indigo-600 text-white' : 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white';
-      document.getElementById('tab-guide').className = !isCol ? 'px-3 py-1.5 rounded-lg bg-indigo-600 text-white' : 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white';
-    }
-
-    init();
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>

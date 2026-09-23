@@ -13,7 +13,26 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <link rel="stylesheet" href="./style.css">
   <title>PokéVault — Mon classeur</title>
-  <script type="module" src="./app.js"></script>
+  <script defer src="./app.bundle.js?v=3.1.0"></script>
+  <script>
+    window.addEventListener('load', () => setTimeout(() => {
+      if (window.__pvBooted) return;
+      const counter=document.getElementById('counter');
+      if (counter) counter.textContent='Le moteur de PokéVault ne s’est pas chargé.';
+      const status=document.getElementById('image-status');
+      if (status) status.textContent='Application non démarrée';
+      const warning=document.getElementById('image-warning');
+      if (warning) warning.textContent=location.protocol==='file:'
+        ? 'Ouvrez PokéVault depuis un serveur local (http://localhost), pas en double-cliquant sur index.html.'
+        : 'Un fichier JavaScript manque ou une ancienne version est en cache. Faites Ctrl+Maj+R, puis vérifiez les erreurs dans F12 → Console.';
+      const grid=document.getElementById('cards-grid');
+      if (grid){grid.replaceChildren();grid.setAttribute('aria-busy','false');}
+      const retry=document.getElementById('image-next');
+      if (retry){retry.textContent='Recharger la page';retry.onclick=()=>location.reload();}
+      const all=document.getElementById('image-all');if(all)all.hidden=true;
+      console.error('PokéVault: app.bundle.js absent ou erreur JavaScript au démarrage.');
+    }, 6500));
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main">Aller au contenu</a>

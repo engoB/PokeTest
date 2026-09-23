@@ -1,7 +1,7 @@
 /* Versioned PWA shell; API and visited images remain available offline after first load. */
-const VERSION='pv-v3';
+const VERSION='pv-v3.1';
 const SHELL=`${VERSION}-shell`,DATA=`${VERSION}-data`,IMAGES=`${VERSION}-images`;
-const APP_FILES=['./','./index.html','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
+const APP_FILES=['./','./index.html','./app.bundle.js?v=3.1.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(SHELL).then(cache=>cache.addAll(APP_FILES)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
   for(const key of await caches.keys())if(key.startsWith('pv-')&&!key.startsWith(VERSION))await caches.delete(key);
@@ -40,6 +40,8 @@ self.addEventListener('fetch',event=>{
   }
   if(url.origin===self.location.origin){
     if(req.mode==='navigate'){event.respondWith(fetch(req).catch(async()=>(await caches.match('./index.html'))||Response.error()));return;}
+    // HTML, JavaScript and CSS must update on deploy, not stay stuck in an old shell cache.
+    if(/\.(?:js|mjs|css|html)$/.test(url.pathname)){event.respondWith(networkFirst(req,SHELL).catch(()=>Response.error()));return;}
     event.respondWith(cacheFirst(req,SHELL,30).catch(()=>Response.error()));
   }
 });

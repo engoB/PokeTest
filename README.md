@@ -1,3 +1,17 @@
+# PokéVault 3.1 — correctif de démarrage
+
+Cette archive contient **app.bundle.js**, un script autonome qui évite les imports JavaScript manquants ou mal servis. Le chargement affiche une erreur explicite plutôt que quatre cartes fantômes bloquées.
+
+**Déploiement :** transférer **tous les fichiers et dossiers** de `PokeTest-Premium/` à la racine du site, en particulier `app.bundle.js`, `index.html` et `sw.js`. Conserver la même URL / origine que la version précédente pour retrouver automatiquement `pv_collection`. Ne pas effacer les données du site.
+
+**Test local :** ouvrir un terminal dans `PokeTest-Premium/`, puis `py -m http.server 4173` (Windows avec Python) et ouvrir `http://localhost:4173`. Ne pas ouvrir `index.html` directement depuis le ZIP.
+
+**Si le catalogue reste vide :** ouvrir F12 → Console / Réseau, vérifier que `app.bundle.js` retourne 200, puis essayer Ctrl+Maj+R. Le catalogue TCGdex a un délai maximal de 35 secondes avant de proposer « Réessayer ».
+
+**Collection :** `pv_collection` n'est ni migrée ni supprimée. Exporter une sauvegarde JSON avant tout changement d'URL ou de domaine.
+
+---
+
 # PokéVault Premium · PWA v3
 
 Classeur Pokémon rapide et épuré pour mobile, iPad et ordinateur. HTML/CSS/JavaScript natifs, **sans CDN JavaScript**, sans compilation et sans compte utilisateur. Le projet est indépendant et non affilié à The Pokémon Company.

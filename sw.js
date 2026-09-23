@@ -1,17 +1,26 @@
 /* Versioned PWA shell; API and visited images remain available offline after first load. */
-const VERSION='pv-v4.0';
+const VERSION='pv-v4.2';
 const SHELL=`${VERSION}-shell`,DATA=`${VERSION}-data`,IMAGES=`${VERSION}-images`,PACK=`${VERSION}-offline-pack`;
-const APP_FILES=['./','./index.html','./app.bundle.js?v=4.0.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
+const APP_FILES=['./','./index.html','./app.bundle.js?v=4.2.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const shell=await caches.open(SHELL);
   await shell.addAll(APP_FILES);
   // Optional pack metadata. Only a bounded set of images can be precached in a browser;
   // native packages include every file directly, without browser storage quotas.
   try{
-    const meta=['./assets/offline/images.json','./assets/offline/catalog-fr.json','./assets/offline/sets-fr.json'];
+    const meta=['./assets/offline/images.json','./assets/offline/catalog-fr.json','./assets/offline/sets-fr.json','./assets/offline/sets-detailed.json','./assets/offline/details-manifest.json','./assets/offline/verified-index.json'];
     const responses=await Promise.all(meta.map(url=>fetch(url).then(r=>r.ok?{url,r}:null).catch(()=>null)));
     const pack=await caches.open(PACK);
     await Promise.all(responses.filter(Boolean).map(({url,r})=>pack.put(url,r)));
+    const details=await fetch('./assets/offline/details-manifest.json').then(r=>r.ok?r.json():null).catch(()=>null);
+    if(details?.detailsComplete&&Array.isArray(details.files)){
+      // On mobile, quota restrictions may prevent a complete browser cache.
+      // A native package still contains all files under dist/ itself.
+      for(const file of details.files){
+        if(typeof file!=='string'||!/^\.\/assets\/offline\/details\/\d{2}\.json$/.test(file))continue;
+        try{await pack.add(file);}catch(error){console.warn('Full detail precache interrupted',error);break;}
+      }
+    }
     const precache=await fetch('./assets/offline/precache.json').then(r=>r.ok?r.json():[]).catch(()=>[]);
     if(Array.isArray(precache))for(const url of precache.slice(0,2000)){
       if(typeof url!=='string'||!/^\.\/assets\/offline\/cards\/[\w.-]+\.(webp|png|jpg)$/.test(url))continue;

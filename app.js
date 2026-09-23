@@ -10,7 +10,7 @@ const API='https://api.tcgdex.net/v2';
 // Transitional, unauthenticated fallback only. The legacy provider retires March 2027.
 const ALTERNATE_API='https://api.pokemontcg.io/v2/cards';
 const OFFLINE_ROOT='./assets/offline/';
-const offlinePack={images:Object.create(null),catalog:null,sets:null};
+const offlinePack={images:Object.create(null),catalog:null,sets:null,setDetails:null,detailsManifest:null,detailShards:new Map()};
 const $=id=>document.getElementById(id);
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state={
@@ -42,9 +42,28 @@ for(const [id,p] of Object.entries(storage('pv_prices_v2',{}))){
 function showToast(message){const el=$('toast');el.textContent=message;el.hidden=false;clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>el.hidden=true,3600);}
 function enqueue(task,priority=false){return new Promise((resolve,reject)=>{const job={task,resolve,reject};if(priority)state.queue.unshift(job);else state.queue.push(job);pumpQueue();});}
 function pumpQueue(){while(state.running<3&&state.queue.length){const job=state.queue.shift();state.running++;Promise.resolve().then(job.task).then(job.resolve,job.reject).finally(()=>{state.running--;pumpQueue();});}}
+function detailShard(id){let sum=0;for(const c of id)sum=(sum*31+c.charCodeAt(0))>>>0;return sum%32;}
+async function localCardDetail(id){
+  if(!offlinePack.detailsManifest||!/^[A-Za-z0-9_.-]{1,110}$/.test(id))return null;
+  const shard=String(detailShard(id)).padStart(2,'0');
+  if(!offlinePack.detailShards.has(shard)){
+    const task=fetch(`${OFFLINE_ROOT}details/${shard}.json`).then(r=>r.ok?r.json():null).catch(()=>null);
+    offlinePack.detailShards.set(shard,task);
+  }
+  const data=await offlinePack.detailShards.get(shard);
+  return data?.[id]||null;
+}
 async function getJSON(path){
   if(path==='fr/cards'&&offlinePack.catalog)return offlinePack.catalog;
   if(path==='fr/sets'&&offlinePack.sets)return offlinePack.sets;
+  if(path.startsWith('fr/sets/')&&offlinePack.setDetails){
+    const id=decodeURIComponent(path.slice('fr/sets/'.length));
+    if(Object.hasOwn(offlinePack.setDetails,id))return offlinePack.setDetails[id];
+  }
+  if(path.startsWith('fr/cards/')&&offlinePack.detailsManifest){
+    const id=decodeURIComponent(path.slice('fr/cards/'.length));
+    const local=await localCardDetail(id);if(local)return local;
+  }
   // An API request must never leave the entire interface on an infinite skeleton.
   // The full FR catalog can be large; individual card requests have a shorter limit.
   const controller=new AbortController();
@@ -69,12 +88,21 @@ async function loadOfflinePack(){
     offlinePack.images[id]=entry;
     state.imageRecords.set(id,{source:'bundled',url:entry.file,checkedAt:Date.now(),verificationVersion:4});
   }
-  const [catalog,sets]=await Promise.allSettled([
-    fetch(`${OFFLINE_ROOT}catalog-fr.json`).then(r=>r.ok?r.json():null),
-    fetch(`${OFFLINE_ROOT}sets-fr.json`).then(r=>r.ok?r.json():null)
+  const load=file=>fetch(`${OFFLINE_ROOT}${file}`).then(r=>r.ok?r.json():null);
+  const [catalog,sets,setDetails,detailsManifest,index]=await Promise.allSettled([
+    load('catalog-fr.json'),load('sets-fr.json'),load('sets-detailed.json'),
+    load('details-manifest.json'),load('verified-index.json')
   ]);
   if(catalog.status==='fulfilled'&&Array.isArray(catalog.value))offlinePack.catalog=catalog.value;
   if(sets.status==='fulfilled'&&Array.isArray(sets.value))offlinePack.sets=sets.value;
+  if(setDetails.status==='fulfilled'&&setDetails.value&&typeof setDetails.value==='object'&&!Array.isArray(setDetails.value))offlinePack.setDetails=setDetails.value;
+  if(detailsManifest.status==='fulfilled'&&detailsManifest.value?.format==='pokevault-catalogue-manifest-v1')offlinePack.detailsManifest=detailsManifest.value;
+  if(index.status==='fulfilled'&&index.value?.format==='pokevault-image-index-v1'){
+    for(const [id,entry] of Object.entries(index.value.images||{})){
+      if(!/^[A-Za-z0-9_.-]{1,110}$/.test(id)||offlinePack.images[id]||!trustedImageUrl(entry?.url)||!Number.isFinite(entry?.checkedAt))continue;
+      state.imageRecords.set(id,{url:entry.url,source:entry.source||'previously-verified',checkedAt:entry.checkedAt});
+    }
+  }
 }
 function isFresh(id){const time=state.prices[id]?.fetchedAt;return Boolean(time&&Date.now()-time<PRICE_TTL);}
 function trend(id){const value=state.prices[id]?.trend;return Number.isFinite(value)?value:null;}

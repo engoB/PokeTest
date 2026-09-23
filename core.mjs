@@ -1,4 +1,4 @@
-// Small, dependency-free helpers shared by the app and Node's built-in test runner.
+// Pure, dependency-free helpers. IDs and prices are always tied to one printing.
 const ALIASES = new Map([['elector', 'electhor']]);
 export const PRICE_TTL = 24 * 60 * 60 * 1000;
 export function normalize(value) {
@@ -6,8 +6,11 @@ export function normalize(value) {
   for (const [alias, correct] of ALIASES) if (text.startsWith(alias)) text = correct + text.slice(alias.length);
   return text;
 }
+export function normalizeSet(value) {
+  return normalize(value).replace(/pok[eé]mon/g, 'pokemon').replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+}
 export function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 export function numeric(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -34,16 +37,48 @@ export function readCollection(raw) {
   }
   return cleaned;
 }
+// Import defaults to preserving the largest recorded quantity, not replacing or double-counting.
+export function mergeCollections(current, incoming) {
+  const result = {...readCollection(current)};
+  for (const [id, quantity] of Object.entries(readCollection(incoming))) result[id] = Math.max(result[id] || 0, quantity);
+  return result;
+}
 export function imageUrls(base, quality='low') {
-  if (typeof base !== 'string' || !/^https:\/\/assets\.tcgdex\.net\//.test(base)) return [];
-  // TCGdex image field is an extensionless URL; never guess set IDs or alternate card art.
-  return [`${base}/${quality}.webp`, `${base}/${quality}.png`];
+  if (typeof base !== 'string' || !/^https:\/\/assets\.tcgdex\.net\/[\w./-]+$/.test(base)) return [];
+  const qualities = quality === 'high' ? ['high', 'low'] : ['low'];
+  return qualities.flatMap(size => [`${base}/${size}.webp`, `${base}/${size}.png`]);
+}
+export function trustedImageUrl(raw) {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:' || !['assets.tcgdex.net','images.pokemontcg.io'].includes(u.hostname) || u.username || u.password) return null;
+    return u.href;
+  } catch {return null;}
+}
+export function sameNumber(a, b) {
+  const normalizeNumber = value => String(value ?? '').trim().toUpperCase().replace(/^([A-Z]*?)0+(\d+)$/, '$1$2');
+  return Boolean(a && b) && normalizeNumber(a) === normalizeNumber(b);
+}
+// Never accept a similarly named card from a different expansion or printing.
+export function matchAlternativeCard(target, candidates) {
+  if (!target?.number || !target?.englishSet || !Array.isArray(candidates)) return null;
+  const valid = candidates.filter(card => {
+    if (!sameNumber(target.number, card.number)) return false;
+    if (normalizeSet(card.set?.name) !== normalizeSet(target.englishSet)) return false;
+    if (target.englishName && normalize(card.name) !== normalize(target.englishName)) return false;
+    if (!target.englishName && !(target.printedTotal > 0 && Number(card.set?.printedTotal) === Number(target.printedTotal))) return false;
+    if (target.printedTotal > 0 && card.set?.printedTotal > 0 && Number(target.printedTotal) !== Number(card.set.printedTotal)) return false;
+    return Boolean(trustedImageUrl(card.images?.small) && trustedImageUrl(card.images?.large || card.images?.small));
+  });
+  if (valid.length !== 1) return null;
+  const card = valid[0];
+  return {source:'pokemon-tcg-api',small:trustedImageUrl(card.images.small),large:trustedImageUrl(card.images.large || card.images.small),matchedId:card.id};
 }
 export function cardMatchesType(card, type, price) {
   const name = normalize(card?.name);
   const rarity = normalize(card?.rarity);
   switch(type) {
-    case 'ex': return /(?:^|[\s-])ex$/.test(name) && !/^m(?:ega|ega|éga)?[-\s]/.test(name);
+    case 'ex': return /(?:^|[\s-])ex$/.test(name) && !/^m(?:ega|ega)?[-\s]/.test(name);
     case 'mega': return /(?:^m[-\s]|mega|mega[-\s])/.test(name);
     case 'v': return /(?:^|[\s-])(?:v|vmax|vstar)$/.test(name);
     case 'gx': return /(?:^|[\s-])gx$/.test(name);
@@ -65,4 +100,16 @@ export function sortCards(cards, mode, prices) {
     }
     return num(a)-num(b) || String(a.localId).localeCompare(String(b.localId),'fr',{numeric:true}) || a.id.localeCompare(b.id);
   });
+}
+export function priceCoverage(cards, prices, now=Date.now()) {
+  let checked=0, quoted=0, missing=0;
+  for (const card of cards) {
+    const p=prices[card.id];
+    if (Number.isFinite(p?.trend)) quoted++;
+    if (p && Number.isFinite(p.fetchedAt) && p.fetchedAt > 0 && now-p.fetchedAt < PRICE_TTL) {
+      checked++;
+      if (!Number.isFinite(p.trend)) missing++;
+    }
+  }
+  return {total:cards.length,checked,quoted,missing,remaining:cards.length-checked};
 }

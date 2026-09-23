@@ -1,84 +1,612 @@
-import {normalize,escapeHtml,parsePrice,formatEuro,readCollection,imageUrls,cardMatchesType,sortCards,PRICE_TTL} from './core.mjs';
+import {
+  normalize, escapeHtml, numeric, parsePrice, formatEuro, readCollection, mergeCollections,
+  imageUrls, trustedImageUrl, matchAlternativeCard, cardMatchesType, sortCards, priceCoverage, PRICE_TTL
+} from './core.mjs';
+import {openCache,loadCache,putCache} from './db.mjs';
+import {windowRows} from './virtual-grid.mjs';
 
-const API = 'https://api.tcgdex.net/v2';
-const PAGE_SIZE = 40;
-const $ = id => document.getElementById(id);
-const state = {allSets:[],allCards:[],cards:[],cardIndex:new Map(),selectedSet:'all',status:'all',type:'all',sort:'number',limit:PAGE_SIZE,layout:'comfortable',inspected:null,requestId:0,rendered:[],priceCache:{},collection:{},details:new Map(),images:new Map(),pending:new Map(),queue:[],running:0,loadSeq:0,installEvent:null};
-const money = formatEuro;
+const API='https://api.tcgdex.net/v2';
+// Transitional, unauthenticated fallback only. The legacy provider retires March 2027.
+const ALTERNATE_API='https://api.pokemontcg.io/v2/cards';
+const $=id=>document.getElementById(id);
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const state={
+  allSets:[],allCards:[],cards:[],cardIndex:new Map(),selectedSet:'all',status:'all',type:'all',sort:'number',
+  layout:'comfortable',collection:{},prices:{},db:null,dirtyPrices:new Set(),details:new Map(),pendingDetails:new Map(),
+  imageRecords:new Map(),imageExtras:new Map(),imageFailures:new Map(),pendingFallback:new Map(),english:new Map(),
+  englishSets:new Map(),altChecked:new Set(),altAttempted:new Set(),altCalls:0,altLastCall:0,altTail:Promise.resolve(),queue:[],running:0,
+  scope:[],display:[],viewport:{startRow:-1,endRow:-1,columns:0,stride:0},scrollFrame:0,lastScroll:0,
+  inspected:null,requestId:0,scanToken:0,scanning:false,scanAll:false,pendingResort:false,installEvent:null
+};
 
-function readStorage(key, fallback) { try {return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;}catch{return fallback;} }
-function saveStorage(key, value) {try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{showToast('Espace local saturé : exportez votre collection.');return false;} }
-state.collection = readCollection(readStorage('pv_collection',{}));
-const legacyPrices = readStorage('pv_prices',{});
-for(const [id,p] of Object.entries(legacyPrices)) if(p && Number.isFinite(Number(p.trend))) state.priceCache[id]={trend:Number(p.trend),avg30:p.avg30??null,low:p.low??null,updated:null,fetchedAt:0};
-state.priceCache={...state.priceCache,...readStorage('pv_prices_v2',{})};
-
-function showToast(message){const toast=$('toast');toast.textContent=message;toast.hidden=false;clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.hidden=true,3600);}
-function queueTask(task){return new Promise((resolve,reject)=>{state.queue.push({task,resolve,reject});runQueue();});}
-function runQueue(){while(state.running<3 && state.queue.length){const job=state.queue.shift();state.running++;Promise.resolve().then(job.task).then(job.resolve,job.reject).finally(()=>{state.running--;runQueue();});}}
-async function getJSON(path,{signal}={}) {const res=await fetch(`${API}/${path}`,{signal});if(!res.ok)throw new Error(`TCGdex ${res.status}`);return res.json();}
-function setNetwork(){const offline=!navigator.onLine;$('network-indicator').hidden=!offline;if(offline) $('network-indicator').textContent='Mode hors connexion';}
-function isFreshPrice(id){const p=state.priceCache[id];return p&&Date.now()-p.fetchedAt<PRICE_TTL;}
-function getTrend(id){const n=state.priceCache[id]?.trend;return Number.isFinite(n)?n:null;}
-function persistPrices(){try{localStorage.setItem('pv_prices_v2',JSON.stringify(state.priceCache));}catch{ // Prices are replaceable; keep the collection safe.
-  const entries=Object.entries(state.priceCache).sort((a,b)=>(b[1].fetchedAt||0)-(a[1].fetchedAt||0)).slice(0,300);
-  state.priceCache=Object.fromEntries(entries);
-  try{localStorage.setItem('pv_prices_v2',JSON.stringify(state.priceCache));}catch{}
-}}
-let priceSaveTimer;
-function rememberPrice(id,detail){const price=parsePrice(detail);state.priceCache[id]=price||{trend:null,avg30:null,low:null,updated:null,fetchedAt:Date.now()};clearTimeout(priceSaveTimer);priceSaveTimer=setTimeout(persistPrices,700);updateSummary();updateTilePrice(id);if(state.inspected===id)updateDialogPrice(id);if(state.sort.startsWith('price')||state.type.startsWith('over'))scheduleRender();}
-
-function updateSummary(){let count=0,unique=0,total=0;for(const [id,qty]of Object.entries(state.collection)){count+=qty;unique++;const trend=getTrend(id);if(trend!==null)total+=trend*qty;}$('owned-total').textContent=count.toLocaleString('fr-FR');$('owned-unique').textContent=unique.toLocaleString('fr-FR');$('portfolio-value').textContent=money(total);}
-function closeSidebar(){ $('sidebar').classList.remove('is-open');$('sidebar-scrim').hidden=true;$('sidebar-open').setAttribute('aria-expanded','false'); }
-function openSidebar(){ $('sidebar').classList.add('is-open');$('sidebar-scrim').hidden=false;$('sidebar-open').setAttribute('aria-expanded','true');$('sidebar-close').focus(); }
-function renderSets(){const query=normalize($('set-search').value);const list=state.allSets.filter(s=>normalize(`${s.name} ${s.id}`).includes(query));$('sets-list').innerHTML=list.length?list.map(s=>`<button type="button" class="set-button ${s.id===state.selectedSet?'is-selected':''}" data-set="${escapeHtml(s.id)}" aria-pressed="${s.id===state.selectedSet}"><span title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</span><span class="set-count">${escapeHtml(s.cardCount?.total??'')}</span></button>`).join(''):'<p class="hint">Aucune extension trouvée.</p>';$('all-sets').classList.toggle('is-selected',state.selectedSet==='all');$('all-sets').setAttribute('aria-pressed',String(state.selectedSet==='all'));}
-function indexCards(cards){for(const c of cards)state.cardIndex.set(c.id,c);}
-async function loadCatalog(){ $('counter').textContent='Chargement du catalogue…';$('cards-grid').setAttribute('aria-busy','true');const [sets,cards]=await Promise.allSettled([getJSON('fr/sets'),getJSON('fr/cards')]);if(sets.status==='fulfilled'){state.allSets=sets.value.sort((a,b)=>String(b.releaseDate||'').localeCompare(String(a.releaseDate||'')));renderSets();}else $('sets-list').innerHTML='<p class="hint">Extensions indisponibles. Réessayez en ligne.</p>';
-  if(cards.status==='fulfilled'){$('empty-state').querySelector('h2').textContent='Aucune carte trouvée';$('empty-state').querySelector('p').textContent='Modifiez votre recherche ou vos filtres.';$('clear-filters').textContent='Réinitialiser les filtres';delete $('clear-filters').dataset.action;state.allCards=cards.value;state.cards=cards.value;indexCards(cards.value);$('all-sets-count').textContent=cards.value.length.toLocaleString('fr-FR');$('set-subtitle').textContent='Retrouvez chaque carte, série par série.';renderGrid();}else{state.cards=[];renderGrid();$('counter').textContent='Catalogue indisponible hors connexion : ouvrez-le une première fois en ligne.';$('empty-state').querySelector('h2').textContent='Catalogue indisponible';$('empty-state').querySelector('p').textContent='Connectez-vous puis réessayez.';$('clear-filters').textContent='Réessayer';$('clear-filters').dataset.action='retry';$('empty-state').hidden=false;} }
-async function selectSet(id){const sequence=++state.requestId;closeSidebar();state.selectedSet=id;state.limit=PAGE_SIZE;const set=state.allSets.find(s=>s.id===id);$('current-set-title').textContent=id==='all'?'Toutes les cartes':set?.name||id;$('set-subtitle').textContent=id==='all'?'Retrouvez chaque carte, série par série.':`${set?.cardCount?.total??'—'} cartes dans cette extension`;renderSets();if(id==='all'){state.cards=state.allCards;renderGrid();return;}$('counter').textContent='Chargement de l’extension…';$('cards-grid').replaceChildren();$('cards-grid').setAttribute('aria-busy','true');try{const detail=await getJSON(`fr/sets/${encodeURIComponent(id)}`);if(sequence!==state.requestId)return;state.cards=detail.cards||[];indexCards(state.cards);renderGrid();}catch{if(sequence!==state.requestId)return;state.cards=[];renderGrid();$('counter').textContent='Extension momentanément indisponible.';showToast('Cette extension ne peut pas être chargée.');}}
-function filteredCards(){const query=normalize($('card-search').value);const found=state.cards.filter(c=>{if(query && !normalize(`${c.name} ${c.localId} ${c.id}`).includes(query))return false;const quantity=state.collection[c.id]||0;if(state.status==='owned'&&!quantity)return false;if(state.status==='missing'&&quantity)return false;return cardMatchesType(c,state.type,getTrend(c.id));});return sortCards(found,state.sort,state.priceCache);}
-function ghostMarkup(){return '<div class="card-ghost" aria-hidden="true"><span>◈</span><small>Illustration indisponible</small></div>';}
-function cardMarkup(c){const quantity=state.collection[c.id]||0;const img=state.images.get(c.id)?.base??c.image;const cached=state.images.get(c.id);const candidate=img&&!cached?.missing?imageUrls(img)[0]:null;const price=getTrend(c.id);return `<article class="card-tile" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup()}<img class="card-art" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" ${candidate?`data-src="${escapeHtml(candidate)}"`:''}><span class="price-pill" data-role="price">${price!==null?money(price):'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;}
-let renderTimer;
-function scheduleRender(){clearTimeout(renderTimer);renderTimer=setTimeout(renderGrid,190);}
-function renderGrid(){const list=filteredCards();state.rendered=list.slice(0,state.limit);$('counter').textContent=`${list.length.toLocaleString('fr-FR')} carte${list.length>1?'s':''} · ${state.rendered.length.toLocaleString('fr-FR')} affichée${state.rendered.length>1?'s':''}`;$('cards-grid').innerHTML=state.rendered.map(cardMarkup).join('');$('cards-grid').setAttribute('aria-busy','false');$('empty-state').hidden=list.length>0;$('load-more').hidden=state.rendered.length>=list.length;observeTiles();}
-function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id)tile.querySelector('[data-role=price]').textContent=getTrend(id)===null?'Cote —':money(getTrend(id));}
-function updateTileQuantity(id){const qty=state.collection[id]||0;for(const tile of $('cards-grid').querySelectorAll('.card-tile')){if(tile.dataset.id!==id)continue;tile.dataset.owned=String(qty>0);const badge=tile.querySelector('[data-role=owned]');if(qty){if(badge)badge.textContent=`×${qty}`;else tile.querySelector('.card-open').insertAdjacentHTML('beforeend',`<span class="owned-pill" data-role="owned">×${qty}</span>`);}else badge?.remove();tile.querySelector('[data-action=minus]').hidden=!qty;}}
-function changeQuantity(id,delta){const old=state.collection[id]||0;const next=Math.max(0,Math.min(9999,old+delta));if(next===old)return;if(next)state.collection[id]=next;else delete state.collection[id];if(!saveStorage('pv_collection',state.collection)){if(old)state.collection[id]=old;else delete state.collection[id];return;}updateSummary();updateTileQuantity(id);if(state.inspected===id)updateDialogQuantity(id);if(state.status!=='all')renderGrid();}
-
-const imageObserver=('IntersectionObserver'in window)?new IntersectionObserver(entries=>{for(const e of entries){if(!e.isIntersecting)continue;imageObserver.unobserve(e.target);activateTile(e.target);}}, {rootMargin:'220px 0px'}):null;
-function observeTiles(){for(const tile of $('cards-grid').querySelectorAll('.card-tile')){if(imageObserver)imageObserver.observe(tile);else activateTile(tile);}}
-function applyImage(img,url){if(!img||!img.isConnected||!url)return;img.dataset.src=url;img.hidden=false;img.src=url;}
-function activateTile(tile){const id=tile.dataset.id;const c=state.cardIndex.get(id);if(!c)return;const img=tile.querySelector('img.card-art');const cached=state.images.get(id);const url=imageUrls(cached?.base??c.image)[0];if(url&&!cached?.missing)applyImage(img,url);if(!isFreshPrice(id)||(!url&&!cached?.missing))requestDetail(id).catch(()=>{});}
-function requestDetail(id){if(state.pending.has(id))return state.pending.get(id);const promise=queueTask(async()=>{let detail=state.details.get(id);if(!detail){detail=await getJSON(`fr/cards/${encodeURIComponent(id)}`);state.details.set(id,detail);}if(!isFreshPrice(id))rememberPrice(id,detail);if(detail.rarity){const card=state.cardIndex.get(id);if(card)card.rarity=detail.rarity;}
-    const card=state.cardIndex.get(id);if(!card?.image&&!state.images.has(id)){if(detail.image)applyCardBase(id,detail.image);else await findEnglishImage(id);}else if(detail.image && !state.images.has(id))applyCardBase(id,detail.image);
-    return detail;});state.pending.set(id,promise);promise.finally(()=>state.pending.delete(id)).catch(()=>{});return promise;}
-function applyCardBase(id,base){const urls=imageUrls(base);if(!urls.length){state.images.set(id,{missing:true});return;}state.images.set(id,{base,missing:false});for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const img=tile.querySelector('img');if(img&&!img.classList.contains('is-loaded'))applyImage(img,urls[0]);}if(state.inspected===id)applyDialogImage(base);}
-async function findEnglishImage(id){try{const en=await getJSON(`en/cards/${encodeURIComponent(id)}`);if(en.image){applyCardBase(id,en.image);return en.image;}}catch{}state.images.set(id,{missing:true});return null;}
-function onImageError(img){if(!img?.isConnected)return;const tile=img.closest('.card-tile');const id=tile?.dataset.id??state.inspected;if(!id)return;const base=state.images.get(id)?.base??state.cardIndex.get(id)?.image;const tried=img.dataset.src||img.src;const urls=imageUrls(base,img.id==='dialog-image'?'high':'low');const next=urls.find(u=>u!==tried && !img.dataset.failed?.split('|').includes(u));img.dataset.failed=[img.dataset.failed,tried].filter(Boolean).join('|');if(next){applyImage(img,next);return;}
-  // A failed French image isn't necessarily missing in another language.
-  if(img.dataset.englishTried==='yes'){img.hidden=true;state.images.set(id,{missing:true});return;}
-  img.dataset.englishTried='yes';queueTask(()=>findEnglishImage(id)).then(enBase=>{if(enBase&&img.isConnected){const enUrl=imageUrls(enBase,img.id==='dialog-image'?'high':'low')[0];if(enUrl!==tried)applyImage(img,enUrl);else img.hidden=true;}else img.hidden=true;}).catch(()=>img.hidden=true);
+function storage(key,fallback){try{return JSON.parse(localStorage.getItem(key)||'null')??fallback;}catch{return fallback;}}
+function saveCollection(next){
+  try{localStorage.setItem('pv_collection',JSON.stringify(next));return true;}
+  catch{showToast('Stockage indisponible. Exportez votre collection avant de continuer.');return false;}
 }
-function onImageLoad(img){img.classList.add('is-loaded');}
+// Never clear or migrate pv_collection on startup. Old installations retain their cards.
+state.collection=readCollection(storage('pv_collection',{}));
+for(const [id,p] of Object.entries(storage('pv_prices',{}))){
+  const trend=numeric(p?.trend);
+  if(trend!==null)state.prices[id]={trend,avg30:numeric(p.avg30),low:numeric(p.low),fetchedAt:0,updated:null};
+}
+for(const [id,p] of Object.entries(storage('pv_prices_v2',{}))){
+  if(p&&typeof p==='object')state.prices[id]={trend:numeric(p.trend),avg30:numeric(p.avg30),low:numeric(p.low),fetchedAt:Number(p.fetchedAt)||0,updated:p.updated||null};
+}
+
+function showToast(message){const el=$('toast');el.textContent=message;el.hidden=false;clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>el.hidden=true,3600);}
+function enqueue(task,priority=false){return new Promise((resolve,reject)=>{const job={task,resolve,reject};if(priority)state.queue.unshift(job);else state.queue.push(job);pumpQueue();});}
+function pumpQueue(){while(state.running<3&&state.queue.length){const job=state.queue.shift();state.running++;Promise.resolve().then(job.task).then(job.resolve,job.reject).finally(()=>{state.running--;pumpQueue();});}}
+async function getJSON(path){const response=await fetch(`${API}/${path}`);if(!response.ok)throw new Error(`TCGdex ${response.status}`);return response.json();}
+function isFresh(id){const time=state.prices[id]?.fetchedAt;return Boolean(time&&Date.now()-time<PRICE_TTL);}
+function trend(id){const value=state.prices[id]?.trend;return Number.isFinite(value)?value:null;}
+function networkStatus(){const offline=!navigator.onLine;$('network-indicator').hidden=!offline;if(offline)$('network-indicator').textContent='Hors connexion · cache local';}
+
+async function hydrateCache(){
+  state.db=await openCache();
+  const [prices,images]=await Promise.all([loadCache(state.db,'prices'),loadCache(state.db,'images')]);
+  for(const {id,...entry} of prices){if((entry.fetchedAt||0)>(state.prices[id]?.fetchedAt||0))state.prices[id]=entry;}
+  for(const {id,...entry} of images)if((entry.checkedAt||0)>(state.imageRecords.get(id)?.checkedAt||0))state.imageRecords.set(id,entry);
+  // Browsers in private mode can deny IndexedDB. Preserve a small localStorage fallback.
+  if(!state.db)for(const [id,entry] of Object.entries(storage('pv_image_resolutions_v1',{})))state.imageRecords.set(id,entry);
+  updateSummary();
+  if(state.cards.length)refreshResults();
+}
+let priceFlushTimer;
+function flushPricesSoon(){clearTimeout(priceFlushTimer);priceFlushTimer=setTimeout(async()=>{
+  const ids=[...state.dirtyPrices];state.dirtyPrices.clear();
+  if(!ids.length)return;
+  const entries=ids.map(id=>({id,...state.prices[id]}));
+  await putCache(state.db,'prices',entries);
+  // Backward-compatible small snapshot. No collection keys are touched.
+  const snapshot=Object.entries(state.prices).sort((a,b)=>(b[1].fetchedAt||0)-(a[1].fetchedAt||0)).slice(0,350);
+  try{localStorage.setItem('pv_prices_v2',JSON.stringify(Object.fromEntries(snapshot)));}catch{}
+},850);}
+function rememberPrice(id,detail){
+  const parsed=parsePrice(detail);
+  state.prices[id]=parsed||{trend:null,avg30:null,low:null,updated:null,fetchedAt:Date.now()};
+  state.dirtyPrices.add(id);flushPricesSoon();updateTilePrice(id);
+  if(state.inspected===id)updateDialogPrice(id);
+  if(state.collection[id])updateSummary();
+  if(state.sort.startsWith('price')||state.type.startsWith('over'))schedulePriceRefresh();
+}
+function updateSummary(){
+  let count=0,unique=0,value=0,valued=0;
+  for(const [id,quantity] of Object.entries(state.collection)){
+    count+=quantity;unique++;
+    if(trend(id)!==null){value+=trend(id)*quantity;valued++;}
+  }
+  $('owned-total').textContent=count.toLocaleString('fr-FR');
+  $('owned-unique').textContent=unique.toLocaleString('fr-FR');
+  $('portfolio-value').textContent=formatEuro(value);
+  $('portfolio-value').title=`${valued} référence(s) cotée(s) sur ${unique}. Estimation indicative.`;
+}
+function closeSidebar(){$('sidebar').classList.remove('is-open');$('sidebar-scrim').hidden=true;$('sidebar-open').setAttribute('aria-expanded','false');}
+function openSidebar(){$('sidebar').classList.add('is-open');$('sidebar-scrim').hidden=false;$('sidebar-open').setAttribute('aria-expanded','true');$('sidebar-close').focus();}
+function renderSets(){
+  const query=normalize($('set-search').value);
+  const sets=state.allSets.filter(s=>normalize(`${s.name} ${s.id}`).includes(query));
+  $('sets-list').innerHTML=sets.length?sets.map(s=>`<button type="button" class="set-button ${s.id===state.selectedSet?'is-selected':''}" data-set="${escapeHtml(s.id)}" aria-pressed="${s.id===state.selectedSet}"><span title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</span><span class="set-count">${escapeHtml(s.cardCount?.total??'')}</span></button>`).join(''):'<p class="hint">Aucune extension trouvée.</p>';
+  $('all-sets').classList.toggle('is-selected',state.selectedSet==='all');
+  $('all-sets').setAttribute('aria-pressed',String(state.selectedSet==='all'));
+}
+function indexCards(cards){for(const card of cards)state.cardIndex.set(card.id,card);}
+function cancelScan(){state.scanToken++;state.scanning=false;state.scanAll=false;}
+async function loadCatalog(){
+  const seq=++state.requestId;
+  cancelScan();$('counter').textContent='Chargement du catalogue…';$('cards-grid').setAttribute('aria-busy','true');
+  const [sets,cards]=await Promise.allSettled([getJSON('fr/sets'),getJSON('fr/cards')]);
+  if(seq!==state.requestId)return;
+  if(sets.status==='fulfilled'){
+    state.allSets=sets.value.sort((a,b)=>String(b.releaseDate||'').localeCompare(String(a.releaseDate||'')));
+    renderSets();
+  }else $('sets-list').innerHTML='<p class="hint">Extensions indisponibles. Réessayez en ligne.</p>';
+  if(cards.status==='fulfilled'){
+    state.allCards=cards.value;state.cards=cards.value;indexCards(cards.value);
+    $('all-sets-count').textContent=cards.value.length.toLocaleString('fr-FR');
+    $('empty-state').querySelector('h2').textContent='Aucune carte trouvée';
+    $('empty-state').querySelector('p').textContent='Modifiez votre recherche ou vos filtres.';
+    $('clear-filters').textContent='Réinitialiser les filtres';delete $('clear-filters').dataset.action;
+    refreshResults();
+    // Owned cards get priority for portfolio accuracy without touching the collection itself.
+    for(const id of Object.keys(state.collection).slice(0,60))if(!isFresh(id))requestDetail(id).catch(()=>{});
+  }else{
+    state.cards=[];refreshResults();$('counter').textContent='Catalogue indisponible hors connexion.';
+    $('empty-state').querySelector('h2').textContent='Catalogue indisponible';
+    $('empty-state').querySelector('p').textContent='Ouvrez le catalogue une première fois en ligne.';
+    $('clear-filters').textContent='Réessayer';$('clear-filters').dataset.action='retry';$('empty-state').hidden=false;
+  }
+}
+async function selectSet(id){
+  const seq=++state.requestId;cancelScan();closeSidebar();state.selectedSet=id;
+  const set=state.allSets.find(s=>s.id===id);
+  $('current-set-title').textContent=id==='all'?'Toutes les cartes':set?.name||id;
+  $('set-subtitle').textContent=id==='all'?'Retrouvez chaque carte, série par série.':`${set?.cardCount?.total??'—'} cartes dans cette extension`;
+  renderSets();
+  if(id==='all'){state.cards=state.allCards;refreshResults();scrollCatalog();startAutomaticScan();return;}
+  $('counter').textContent='Chargement de l’extension…';state.cards=[];refreshResults();
+  try{
+    const detail=await getJSON(`fr/sets/${encodeURIComponent(id)}`);
+    if(seq!==state.requestId)return;
+    state.cards=detail.cards||[];indexCards(state.cards);refreshResults();scrollCatalog();startAutomaticScan();
+  }catch{if(seq===state.requestId){state.cards=[];refreshResults();showToast('Extension momentanément indisponible.');}}
+}
+function baseScope(){
+  const query=normalize($('card-search').value);
+  return state.cards.filter(c=>{
+    if(query&&!normalize(`${c.name} ${c.localId} ${c.id}`).includes(query))return false;
+    const quantity=state.collection[c.id]||0;
+    if(state.status==='owned'&&!quantity)return false;
+    if(state.status==='missing'&&quantity)return false;
+    if(state.type==='over10'||state.type==='over50')return true;
+    return cardMatchesType(c,state.type,trend(c.id));
+  });
+}
+function needsScan(){return state.sort.startsWith('price')||['over10','over50','illustration','secret'].includes(state.type);}
+function refreshResults({keepScroll=false}={}){
+  state.scope=baseScope();
+  const filtered=state.scope.filter(c=>cardMatchesType(c,state.type,trend(c.id)));
+  state.display=sortCards(filtered,state.sort,state.prices);
+  state.viewport.startRow=-1;state.viewport.endRow=-1;
+  $('counter').textContent=`${state.display.length.toLocaleString('fr-FR')} carte${state.display.length>1?'s':''} · ${state.scope.length.toLocaleString('fr-FR')} dans le périmètre`;
+  $('empty-state').hidden=state.display.length>0 || (needsScan()&&state.scope.length>0);
+  if(!state.display.length&&needsScan()&&state.scope.length){
+    $('empty-state').hidden=false;
+    $('empty-state').querySelector('h2').textContent=priceCoverage(state.scope,state.prices).remaining?'Cotes en cours de vérification':'Aucune carte au-dessus du seuil';
+    $('empty-state').querySelector('p').textContent='Les cartes sans cote connue ne sont pas considérées comme bon marché.';
+    $('clear-filters').textContent='Réinitialiser les filtres';
+  }else if(state.display.length){
+    $('empty-state').querySelector('h2').textContent='Aucune carte trouvée';
+    $('empty-state').querySelector('p').textContent='Modifiez votre recherche ou vos filtres.';
+  }
+  updateCoverage();renderViewport(true);
+  if(!keepScroll)updateScrollTools();
+}
+function updateCoverage(){
+  const active=needsScan();$('price-coverage').hidden=!active;
+  if(!active)return;
+  const stats=priceCoverage(state.scope,state.prices);
+  $('price-progress').textContent=`${stats.checked.toLocaleString('fr-FR')} / ${stats.total.toLocaleString('fr-FR')} fiches vérifiées · ${stats.quoted.toLocaleString('fr-FR')} cotées${stats.missing?' · '+stats.missing+' sans cote':''}`;
+  $('price-progress-bar').value=stats.checked;$('price-progress-bar').max=Math.max(stats.total,1);
+  $('price-warning').textContent=stats.remaining>0
+    ?`Résultats provisoires : ${stats.remaining.toLocaleString('fr-FR')} fiche(s) à vérifier. Les prix inconnus restent hors des seuils, pas à 0 €.`
+    :'Périmètre vérifié. Certaines cartes peuvent ne pas avoir de cote Cardmarket.';
+  $('scan-next').hidden=stats.remaining===0;
+  $('scan-next').disabled=state.scanning;
+  $('scan-next').textContent=state.scanning?'Analyse en cours…':`Analyser ${Math.min(150,stats.remaining)} fiches de plus`;
+  $('scan-all').hidden=stats.remaining===0 || stats.remaining<=150;
+  $('scan-all').disabled=state.scanning;
+  $('scan-stop').hidden=!state.scanning;
+  $('apply-prices').hidden=!state.pendingResort;
+}
+let refreshPriceTimer;
+function schedulePriceRefresh(){
+  clearTimeout(refreshPriceTimer);
+  refreshPriceTimer=setTimeout(()=>{
+    const gridY=$('grid-origin').getBoundingClientRect().top;
+    if(gridY<140){state.pendingResort=true;updateCoverage();return;}
+    state.pendingResort=false;refreshResults({keepScroll:true});
+  },500);
+}
+function scanCandidates(){
+  const all=baseScope().filter(c=>!isFresh(c.id));
+  const owned=[],visible=[],rest=[];
+  const displayed=new Set(state.display.map(c=>c.id));
+  for(const c of all){if(state.collection[c.id])owned.push(c);else if(displayed.has(c.id))visible.push(c);else rest.push(c);}
+  return [...owned,...visible,...rest];
+}
+function startAutomaticScan(){
+  if(!needsScan()||!state.cards.length)return;
+  const remaining=scanCandidates().length;
+  if(!remaining)return;
+  const limit=state.selectedSet==='all'?Math.min(75,remaining):Math.min(300,remaining);
+  scanPrices(limit);
+}
+async function scanPrices(limit=150){
+  if(state.scanning)return;
+  const token=++state.scanToken;
+  state.scanning=true;updateCoverage();
+  const candidates=scanCandidates().slice(0,limit);
+  for(let i=0;i<candidates.length;i+=3){
+    if(token!==state.scanToken||!navigator.onLine)break;
+    await Promise.allSettled(candidates.slice(i,i+3).map(c=>requestDetail(c.id)));
+    if(token!==state.scanToken)break;
+    if(i%12===0)updateCoverage();
+    // Be considerate to a public API, and keep viewport requests responsive.
+    await sleep(190);
+  }
+  if(token===state.scanToken){state.scanning=false;updateCoverage();schedulePriceRefresh();}
+}
+function stopScan(){cancelScan();updateCoverage();}
+function scanAll(){
+  const n=scanCandidates().length;
+  if(n>500&&!confirm(`Analyser ${n.toLocaleString('fr-FR')} fiches peut durer longtemps et solliciter TCGdex. Continuer ?`))return;
+  scanPrices(n);
+}
+
+// The DOM contains at most a few overscanned rows, regardless of catalog size.
+function gridGeometry(){
+  const grid=$('cards-grid');
+  const template=getComputedStyle(grid).gridTemplateColumns;
+  const columns=Math.max(1,template.split(/\s+/).filter(x=>x&&x!=='none').length);
+  const gap=parseFloat(getComputedStyle(grid).rowGap)||12;
+  const first=grid.querySelector('.card-tile');
+  const estimated=grid.clientWidth/columns*337/245+66;
+  const measured=first?.getBoundingClientRect().height||estimated;
+  return {columns,stride:measured+gap};
+}
+function renderViewport(force=false){
+  if($('catalog').hidden)return;
+  const grid=$('cards-grid');
+  const geometry=gridGeometry();
+  if(force||state.viewport.columns!==geometry.columns||!state.viewport.stride){
+    state.viewport.columns=geometry.columns;
+    // Recompute on resize, otherwise retain the measured row height across DOM recycling.
+    if(force||Math.abs(state.viewport.stride-geometry.stride)>12)state.viewport.stride=geometry.stride;
+  }
+  const origin=$('grid-origin').getBoundingClientRect().top+window.scrollY;
+  const range=windowRows({total:state.display.length,columns:state.viewport.columns,rowStride:state.viewport.stride,
+    scrollTop:window.scrollY,viewportHeight:window.innerHeight,originTop:origin,overscan:850});
+  if(!force&&range.startRow===state.viewport.startRow&&range.endRow===state.viewport.endRow)return;
+  state.viewport.startRow=range.startRow;state.viewport.endRow=range.endRow;
+  $('grid-top').style.height=`${range.top}px`;
+  $('grid-bottom').style.height=`${range.bottom}px`;
+  imageObserver?.disconnect();
+  grid.innerHTML=state.display.slice(range.start,range.end).map((card,i)=>cardMarkup(card,range.start+i)).join('');
+  grid.setAttribute('aria-busy','false');
+  for(const tile of grid.querySelectorAll('.card-tile')){
+    if(imageObserver)imageObserver.observe(tile);else activateTile(tile);
+  }
+  const first=grid.querySelector('.card-tile');
+  if(first){
+    const actual=first.getBoundingClientRect().height+(parseFloat(getComputedStyle(grid).rowGap)||12);
+    if(Math.abs(actual-state.viewport.stride)>2){state.viewport.stride=actual;requestAnimationFrame(()=>renderViewport(true));}
+  }
+  $('grid-end-status').textContent=state.display.length?`Fin du catalogue · ${state.display.length.toLocaleString('fr-FR')} cartes`:' ';
+}
+function onScroll(){
+  state.lastScroll=Date.now();
+  if(state.scrollFrame)return;
+  state.scrollFrame=requestAnimationFrame(()=>{state.scrollFrame=0;renderViewport();updateScrollTools();});
+}
+function updateScrollTools(){
+  const enough=state.display.length>20&&!$('catalog').hidden;
+  const atTop=window.scrollY<320;
+  const atBottom=window.scrollY+window.innerHeight>document.documentElement.scrollHeight-280;
+  $('scroll-tools').hidden=!enough;
+  $('jump-top').disabled=atTop;
+  $('jump-bottom').disabled=atBottom;
+}
+function scrollCatalog(){
+  const top=window.scrollY+$('catalog').getBoundingClientRect().top-80;
+  window.scrollTo({top:Math.max(0,top),behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+}
+function jumpTop(){window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
+function jumpBottom(){window.scrollTo({top:document.documentElement.scrollHeight-window.innerHeight,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
+function ghostMarkup(){return '<div class="card-ghost" aria-hidden="true"><span class="ghost-label">Visuel en attente</span></div>';}
+function cardMarkup(c,index){
+  const quantity=state.collection[c.id]||0;
+  const p=trend(c.id);
+  return `<article class="card-tile" aria-posinset="${index+1}" aria-setsize="${state.display.length}" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup()}<img class="card-art" alt="Illustration de ${escapeHtml(c.name)}" loading="lazy" decoding="async" hidden><span class="price-pill" data-role="price">${p!==null?formatEuro(p):'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;
+}
+function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const el=tile.querySelector('[data-role=price]');if(el)el.textContent=trend(id)===null?'Cote —':formatEuro(trend(id));}}
+function updateTileQuantity(id){
+  const quantity=state.collection[id]||0;
+  for(const tile of $('cards-grid').querySelectorAll('.card-tile')){
+    if(tile.dataset.id!==id)continue;
+    tile.dataset.owned=String(quantity>0);
+    const badge=tile.querySelector('[data-role=owned]');
+    if(quantity){if(badge)badge.textContent=`×${quantity}`;else tile.querySelector('.card-open').insertAdjacentHTML('beforeend',`<span class="owned-pill" data-role="owned">×${quantity}</span>`);}else badge?.remove();
+    tile.querySelector('[data-action=minus]').hidden=!quantity;
+  }
+}
+function changeQuantity(id,delta){
+  const old=state.collection[id]||0;
+  const next=Math.max(0,Math.min(9999,old+delta));if(old===next)return;
+  const candidate={...state.collection};if(next)candidate[id]=next;else delete candidate[id];
+  if(!saveCollection(candidate))return;
+  state.collection=candidate;updateSummary();updateTileQuantity(id);
+  if(state.inspected===id)updateDialogQuantity(id);
+  if(state.status!=='all'){refreshResults({keepScroll:true});if(needsScan())startAutomaticScan();}
+  if(next&&!isFresh(id))requestDetail(id,true).catch(()=>{});
+}
+
+function trimDetails(){while(state.details.size>380)state.details.delete(state.details.keys().next().value);}
+function requestDetail(id,priority=false){
+  if(state.pendingDetails.has(id))return state.pendingDetails.get(id);
+  if(state.details.has(id)&&isFresh(id))return Promise.resolve(state.details.get(id));
+  const promise=enqueue(async()=>{
+    const detail=await getJSON(`fr/cards/${encodeURIComponent(id)}`);
+    state.details.set(id,detail);trimDetails();
+    if(!isFresh(id))rememberPrice(id,detail);
+    const card=state.cardIndex.get(id);
+    if(card&&detail.rarity)card.rarity=detail.rarity;
+    if(detail.image&&detail.image!==card?.image)addExtra(id,{source:'tcgdex-fr',base:detail.image});
+    return detail;
+  },priority);
+  state.pendingDetails.set(id,promise);
+  promise.finally(()=>state.pendingDetails.delete(id)).catch(()=>{});
+  return promise;
+}
+
+// Image resolution: FR brief/detail -> EN exact ID -> independently verified secondary match.
+function addExtra(id,entry){
+  const extras=state.imageExtras.get(id)||[];
+  if(!extras.some(e=>e.source===entry.source&&e.base===entry.base&&e.small===entry.small))extras.push(entry);
+  state.imageExtras.set(id,extras);
+}
+function candidateUrls(entry,quality){
+  if(entry.base)return imageUrls(entry.base,quality).map(url=>({url,entry}));
+  const urls=quality==='high'?[entry.large,entry.small]:[entry.small,entry.large];
+  return [...new Set(urls.map(trustedImageUrl).filter(Boolean))].map(url=>({url,entry}));
+}
+function imageOptions(id,quality){
+  const card=state.cardIndex.get(id);
+  const record=state.imageRecords.get(id);
+  if(record?.missingUntil>Date.now())return [];
+  const candidates=[];
+  if(record?.source&&record.source!=='missing')candidates.push(record);
+  if(card?.image)candidates.push({source:'tcgdex-fr',base:card.image});
+  if(state.details.get(id)?.image)candidates.push({source:'tcgdex-fr',base:state.details.get(id).image});
+  candidates.push(...(state.imageExtras.get(id)||[]));
+  const seen=new Set();
+  return candidates.flatMap(entry=>candidateUrls(entry,quality)).filter(c=>{if(seen.has(c.url))return false;seen.add(c.url);return true;});
+}
+function imageId(img){return img.id==='dialog-image'?state.inspected:img.closest('.card-tile')?.dataset.id;}
+function imageQuality(img){return img.id==='dialog-image'?'high':'low';}
+function nextImage(img,id){
+  if(!img.isConnected||!id)return false;
+  const failed=state.imageFailures.get(id)||new Set();
+  const options=imageOptions(id,imageQuality(img));
+  const candidate=options.find(item=>!failed.has(item.url)&&!img.__tried?.has(item.url));
+  if(!candidate)return false;
+  if(!img.__tried)img.__tried=new Set();
+  img.__tried.add(candidate.url);img.__candidate=candidate;
+  img.hidden=false;img.classList.remove('is-loaded');img.src=candidate.url;
+  return true;
+}
+function applyImageToVisible(id){
+  for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){
+    const img=tile.querySelector('img.card-art');
+    if(img&&!img.classList.contains('is-loaded')&&!img.__resolving)nextImage(img,id);
+  }
+  if(state.inspected===id){const img=$('dialog-image');if(!img.classList.contains('is-loaded')&&!img.__resolving)nextImage(img,id);}
+}
+function persistImage(id,entry){
+  const saved={...entry,checkedAt:Date.now()};
+  state.imageRecords.set(id,saved);
+  putCache(state.db,'images',[{id,...saved}]).then(ok=>{
+    if(ok)return;
+    const fallback=storage('pv_image_resolutions_v1',{});
+    fallback[id]=saved;
+    const latest=Object.entries(fallback).sort((a,b)=>(b[1].checkedAt||0)-(a[1].checkedAt||0)).slice(0,100);
+    try{localStorage.setItem('pv_image_resolutions_v1',JSON.stringify(Object.fromEntries(latest)));}catch{}
+  });
+}
+function onImageLoad(img){
+  img.classList.add('is-loaded');img.hidden=false;
+  const id=imageId(img),entry=img.__candidate?.entry;
+  if(!id||!entry)return;
+  if(entry.source!=='tcgdex-fr'&&state.imageRecords.get(id)?.source!==entry.source)persistImage(id,entry);
+  if(state.inspected===id)updateImageSource(id);
+}
+function onImageError(img){
+  const id=imageId(img);if(!id)return;
+  const failed=state.imageFailures.get(id)||new Set();
+  if(img.__candidate?.url)failed.add(img.__candidate.url);
+  state.imageFailures.set(id,failed);
+  img.classList.remove('is-loaded');img.hidden=true;
+  if(!nextImage(img,id))findFallbackForElement(img,id);
+}
+async function getEnglish(id){
+  if(state.english.has(id))return state.english.get(id);
+  let result=null;
+  try{result=await enqueue(()=>getJSON(`en/cards/${encodeURIComponent(id)}`),true);}catch{}
+  state.english.set(id,result);
+  return result;
+}
+async function secondaryImage(id,english){
+  if(state.altChecked.has(id)||state.altAttempted.has(id)||state.altCalls>=60||!navigator.onLine)return false;
+  state.altAttempted.add(id);
+  const card=state.cardIndex.get(id);
+  let set=english?.set;
+  if(!set?.name){
+    const setId=String(id).split('-')[0];
+    if(!state.englishSets.has(setId))state.englishSets.set(setId,enqueue(()=>getJSON(`en/sets/${encodeURIComponent(setId)}`),true).catch(()=>null));
+    set=await state.englishSets.get(setId);
+  }
+  if(!set?.name||!card?.localId)return false;
+  // Serialize secondary calls: rapid scrolling must not cause a burst of requests.
+  const run=state.altTail.catch(()=>{}).then(async()=>{
+    if(state.altCalls>=60)return false;
+    const wait=Math.max(0,420-(Date.now()-state.altLastCall));
+    if(wait)await sleep(wait);
+    state.altLastCall=Date.now();state.altCalls++;
+    const phrase=value=>String(value).replace(/["\\]/g,' ').trim();
+    const query=`number:"${phrase(card.localId)}" set.name:"${phrase(set.name)}"`;
+    const url=`${ALTERNATE_API}?q=${encodeURIComponent(query)}&pageSize=100&select=${encodeURIComponent('id,name,number,set,images')}`;
+    const response=await fetch(url);
+    if(!response.ok)throw new Error(`Source secondaire ${response.status}`);
+    const result=await response.json();
+    state.altChecked.add(id);
+    const match=matchAlternativeCard({number:card.localId,englishName:english?.name,englishSet:set.name,printedTotal:set.cardCount?.official},result.data);
+    if(match){addExtra(id,match);return true;}
+    return false;
+  });
+  state.altTail=run.catch(()=>{});
+  return run;
+}
+async function ensureFallback(id,{force=false}={}){
+  if(state.pendingFallback.has(id))return state.pendingFallback.get(id);
+  if(!navigator.onLine)return false;
+  const cached=state.imageRecords.get(id);
+  if(!force&&cached?.missingUntil>Date.now())return false;
+  const promise=(async()=>{
+    const card=state.cardIndex.get(id);
+    try{
+      const detail=await requestDetail(id,true);
+      if(detail.image&&detail.image!==card?.image){
+        addExtra(id,{source:'tcgdex-fr',base:detail.image});
+        const failed=state.imageFailures.get(id)||new Set();
+        if(imageUrls(detail.image).some(url=>!failed.has(url)))return true;
+      }
+    }catch{return false;}
+    if(!state.english.has(id)){
+      const english=await getEnglish(id);
+      if(english?.image){addExtra(id,{source:'tcgdex-en',base:english.image});return true;}
+    }
+    const english=state.english.get(id);
+    if(english?.image&&!state.imageExtras.get(id)?.some(e=>e.source==='tcgdex-en')){
+      addExtra(id,{source:'tcgdex-en',base:english.image});return true;
+    }
+    if(!state.altChecked.has(id)&&!state.altAttempted.has(id)){
+      try{if(await secondaryImage(id,english))return true;}
+      catch{return false;} // Network errors must never become permanent negative cache entries.
+    }
+    // Cache only a confirmed miss, never a quota, offline or network failure.
+    if(state.altChecked.has(id))persistImage(id,{source:'missing',missingUntil:Date.now()+24*60*60*1000});
+    return false;
+  })();
+  state.pendingFallback.set(id,promise);
+  promise.finally(()=>state.pendingFallback.delete(id)).catch(()=>{});
+  return promise;
+}
+async function findFallbackForElement(img,id){
+  if(img.__resolving)return;
+  img.__resolving=true;
+  try{
+    const found=await ensureFallback(id);
+    if(img.isConnected&&imageId(img)===id){
+      if(found&&!nextImage(img,id))img.hidden=true;
+      else if(!found)img.hidden=true;
+    }
+    applyImageToVisible(id);
+  }finally{img.__resolving=false;}
+}
+const imageObserver=('IntersectionObserver'in window)?new IntersectionObserver(entries=>{
+  for(const entry of entries)if(entry.isIntersecting){imageObserver.unobserve(entry.target);activateTile(entry.target);}
+},{rootMargin:'300px 0px'}):null;
+function activateTile(tile){
+  const id=tile.dataset.id,img=tile.querySelector('img.card-art');
+  if(!img||!state.cardIndex.has(id))return;
+  if(!nextImage(img,id))findFallbackForElement(img,id);
+  // Only visible cards request details; price-mode scanning is a separate bounded operation.
+  if(!isFresh(id))requestDetail(id,true).catch(()=>{});
+}
+async function retryImage(){
+  const id=state.inspected;if(!id)return;
+  state.imageFailures.delete(id);state.altChecked.delete(id);state.altAttempted.delete(id);state.english.delete(id);state.imageExtras.delete(id);
+  state.imageRecords.delete(id);$('dialog-image').__tried=new Set();$('dialog-image').classList.remove('is-loaded');
+  $('dialog-image').hidden=true;showToast('Nouvelle recherche de l’illustration…');
+  if(!nextImage($('dialog-image'),id))await ensureFallback(id,{force:true});
+  applyImageToVisible(id);
+}
+function updateImageSource(id){
+  const source=state.imageRecords.get(id)?.source;
+  $('dialog-image-source').textContent=source==='pokemon-tcg-api'?'Illustration : Pokémon TCG API (source secondaire)'
+    :source==='tcgdex-en'?'Illustration : TCGdex EN':source==='missing'?'Illustration introuvable · verso provisoire':'Illustration : TCGdex';
+}
 
 function updateDialogQuantity(id){const quantity=state.collection[id]||0;$('dialog-quantity').textContent=`${quantity} exemplaire${quantity>1?'s':''}`;$('dialog-minus').disabled=quantity===0;}
-function updateDialogPrice(id){const p=state.priceCache[id];$('dialog-price').textContent=p?.trend!=null?money(p.trend):'Non cotée';$('dialog-avg').textContent=money(p?.avg30);$('dialog-low').textContent=money(p?.low);$('dialog-price-date').textContent=p?.updated?`Prix mis à jour : ${new Date(p.updated).toLocaleDateString('fr-FR')}`:'Estimation indicative, selon les données disponibles.';}
-function applyDialogImage(base){const url=imageUrls(base,'high')[0];const img=$('dialog-image');img.classList.remove('is-loaded');img.dataset.failed='';img.dataset.englishTried='no';img.hidden=true;if(url)applyImage(img,url);}
-async function openDialog(id){const card=state.cardIndex.get(id);if(!card)return;state.inspected=id;$('dialog-title').textContent=card.name;$('dialog-subtitle').textContent=`${state.allSets.find(s=>s.id===id.split('-')[0])?.name||card.set?.name||'Carte Pokémon'} · № ${card.localId}`;$('dialog-rarity').textContent=card.rarity||'Carte de collection';updateDialogQuantity(id);updateDialogPrice(id);const image=state.images.get(id)?.base??card.image;applyDialogImage(image);$('card-dialog').hidden=false;document.body.style.overflow='hidden';$('dialog-close').focus();try{const detail=await requestDetail(id);if(state.inspected!==id)return;$('dialog-title').textContent=detail.name||card.name;$('dialog-subtitle').textContent=`${detail.set?.name||'Carte Pokémon'} · № ${detail.localId||card.localId}`;$('dialog-rarity').textContent=detail.rarity||'Carte de collection';updateDialogPrice(id);const base=state.images.get(id)?.base??detail.image;if(base)applyDialogImage(base);}catch{if(state.inspected===id)showToast('Fiche détaillée indisponible hors connexion.');}}
-function closeDialog(){state.inspected=null;$('card-dialog').hidden=true;document.body.style.overflow='';document.querySelector('.card-open:focus')?.focus();}
-function setStatus(value){state.status=value;state.limit=PAGE_SIZE;for(const b of $('status-filters').querySelectorAll('button')){const active=b.dataset.status===value;b.classList.toggle('is-active',active);b.setAttribute('aria-pressed',String(active));}renderGrid();}
-function setLayout(value){state.layout=value;$('cards-grid').dataset.layout=value;for(const b of document.querySelectorAll('[data-layout]')){if(b.tagName!=='BUTTON')continue;const active=b.dataset.layout===value;b.classList.toggle('is-active',active);b.setAttribute('aria-pressed',String(active));}}
-function switchTab(tab){const cards=tab==='cards';$('catalog').hidden=!cards;$('guide').hidden=cards;for(const [id,active]of [['tab-cards',cards],['tab-guide',!cards]]){$(id).classList.toggle('is-active',active);$(id).setAttribute('aria-selected',String(active));}if(!cards)closeSidebar();}
-function resetFilters(){if($('clear-filters').dataset.action==='retry'){delete $('clear-filters').dataset.action;loadCatalog();return;}$('card-search').value='';$('sort-select').value='number';$('type-select').value='all';state.type='all';state.sort='number';setStatus('all');}
-function exportCollection(){const content=JSON.stringify({format:'pokevault-collection',version:1,exportedAt:new Date().toISOString(),collection:state.collection},null,2);const blob=new Blob([content],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`pokevault-${new Date().toISOString().slice(0,10)}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);showToast('Collection exportée.');}
-async function importCollection(file){if(!file)return;if(file.size>2*1024*1024){showToast('Fichier trop volumineux (2 Mo maximum).');return;}try{const data=JSON.parse(await file.text());if(data?.format!=='pokevault-collection'||data.version!==1||typeof data.collection!=='object'||!data.collection||Array.isArray(data.collection))throw Error('Format de sauvegarde non reconnu');const collection=readCollection(data.collection);if(!Object.keys(collection).length&&Object.keys(data.collection).length)throw Error('Aucune carte valide dans la sauvegarde');if(!window.confirm('Remplacer votre collection locale par celle du fichier ? Exportez votre collection actuelle avant de continuer.'))return;if(!saveStorage('pv_collection',collection))return;state.collection=collection;updateSummary();renderGrid();showToast('Collection importée.');}catch(error){showToast(error.message||'Impossible de lire cette sauvegarde.');}finally{$('import-file').value='';}}
-function installPWA(){if(state.installEvent){state.installEvent.prompt();state.installEvent.userChoice.finally(()=>{state.installEvent=null;$('install-btn').hidden=true;});}else showToast('Sur iPhone/iPad : Partager → Sur l’écran d’accueil.');}
-function registerSW(){if('serviceWorker'in navigator && (location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))navigator.serviceWorker.register('./sw.js').catch(()=>{});}
-function bindEvents(){ $('sidebar-open').addEventListener('click',openSidebar);$('sidebar-close').addEventListener('click',closeSidebar);$('sidebar-scrim').addEventListener('click',closeSidebar);$('set-search').addEventListener('input',renderSets);$('sets-list').addEventListener('click',event=>{const target=event.target.closest('[data-set]');if(target)selectSet(target.dataset.set);});$('all-sets').addEventListener('click',()=>selectSet('all'));
-  let searchTimer;$('card-search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.limit=PAGE_SIZE;renderGrid();},145);});$('sort-select').addEventListener('change',event=>{state.sort=event.target.value;renderGrid();});$('type-select').addEventListener('change',event=>{state.type=event.target.value;state.limit=PAGE_SIZE;renderGrid();});$('status-filters').addEventListener('click',event=>{const btn=event.target.closest('[data-status]');if(btn)setStatus(btn.dataset.status);});document.querySelector('.layout-switch').addEventListener('click',event=>{const btn=event.target.closest('button[data-layout]');if(btn)setLayout(btn.dataset.layout);});$('load-more').addEventListener('click',()=>{state.limit+=PAGE_SIZE;renderGrid();});$('clear-filters').addEventListener('click',resetFilters);
-  $('cards-grid').addEventListener('click',event=>{const btn=event.target.closest('[data-action]');if(!btn)return;const id=btn.dataset.id;if(btn.dataset.action==='open')openDialog(id);else changeQuantity(id,btn.dataset.action==='plus'?1:-1);});$('cards-grid').addEventListener('load',event=>{if(event.target.matches('img.card-art'))onImageLoad(event.target);},true);$('cards-grid').addEventListener('error',event=>{if(event.target.matches('img.card-art'))onImageError(event.target);},true);
-  $('tab-cards').addEventListener('click',()=>switchTab('cards'));$('tab-guide').addEventListener('click',()=>switchTab('guide'));$('dialog-close').addEventListener('click',closeDialog);$('card-dialog').addEventListener('click',event=>{if(event.target.id==='card-dialog')closeDialog();});$('dialog-image').addEventListener('load',event=>onImageLoad(event.target));$('dialog-image').addEventListener('error',event=>onImageError(event.target));$('dialog-plus').addEventListener('click',()=>{if(state.inspected)changeQuantity(state.inspected,1);});$('dialog-minus').addEventListener('click',()=>{if(state.inspected)changeQuantity(state.inspected,-1);});document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeDialog();closeSidebar();}if(event.key==='Tab'&&!$('card-dialog').hidden){const focusable=[...$('card-dialog').querySelectorAll('button:not([disabled])')];const first=focusable[0],last=focusable[focusable.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
-  $('export-btn').addEventListener('click',exportCollection);$('import-btn').addEventListener('click',()=>$('import-file').click());$('import-file').addEventListener('change',e=>importCollection(e.target.files[0]));$('install-btn').addEventListener('click',installPWA);window.addEventListener('online',setNetwork);window.addEventListener('offline',setNetwork);window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installEvent=e;$('install-btn').hidden=false;});if(/iPhone|iPad|iPod/.test(navigator.userAgent)&&!navigator.standalone)$('install-btn').hidden=false;
+function updateDialogPrice(id){
+  const p=state.prices[id];$('dialog-price').textContent=Number.isFinite(p?.trend)?formatEuro(p.trend):'Non cotée';
+  $('dialog-avg').textContent=formatEuro(p?.avg30);$('dialog-low').textContent=formatEuro(p?.low);
+  $('dialog-price-date').textContent=p?.updated?`Source mise à jour : ${new Date(p.updated).toLocaleDateString('fr-FR')}`:'Estimation indicative, selon les données disponibles.';
 }
-bindEvents();setNetwork();updateSummary();registerSW();loadCatalog();
+async function openDialog(id){
+  const card=state.cardIndex.get(id);if(!card)return;
+  state.inspected=id;$('dialog-title').textContent=card.name;
+  $('dialog-subtitle').textContent=`${state.allSets.find(s=>s.id===id.split('-')[0])?.name||card.set?.name||'Carte Pokémon'} · № ${card.localId}`;
+  $('dialog-rarity').textContent=card.rarity||'Carte de collection';updateDialogQuantity(id);updateDialogPrice(id);updateImageSource(id);
+  const img=$('dialog-image');img.__tried=new Set();img.__resolving=false;img.classList.remove('is-loaded');img.hidden=true;
+  $('card-dialog').hidden=false;document.body.style.overflow='hidden';$('dialog-close').focus();
+  if(!nextImage(img,id))findFallbackForElement(img,id);
+  try{
+    const detail=await requestDetail(id,true);if(state.inspected!==id)return;
+    $('dialog-title').textContent=detail.name||card.name;
+    $('dialog-subtitle').textContent=`${detail.set?.name||'Carte Pokémon'} · № ${detail.localId||card.localId}`;
+    $('dialog-rarity').textContent=detail.rarity||'Carte de collection';updateDialogPrice(id);
+  }catch{if(state.inspected===id)showToast('Fiche détaillée indisponible hors connexion.');}
+}
+function closeDialog(){state.inspected=null;$('card-dialog').hidden=true;document.body.style.overflow='';}
+function setStatus(value){state.status=value;for(const btn of $('status-filters').querySelectorAll('button')){const active=btn.dataset.status===value;btn.classList.toggle('is-active',active);btn.setAttribute('aria-pressed',String(active));}filtersChanged();}
+function setLayout(value){
+  state.layout=value;$('cards-grid').dataset.layout=value;
+  for(const btn of document.querySelectorAll('.layout-switch button[data-layout]')){const active=btn.dataset.layout===value;btn.classList.toggle('is-active',active);btn.setAttribute('aria-pressed',String(active));}
+  state.viewport.stride=0;renderViewport(true);
+}
+function switchTab(tab){
+  const cards=tab==='cards';$('catalog').hidden=!cards;$('guide').hidden=cards;
+  for(const [id,active] of [['tab-cards',cards],['tab-guide',!cards]]){$(id).classList.toggle('is-active',active);$(id).setAttribute('aria-selected',String(active));}
+  if(!cards)closeSidebar();else renderViewport(true);updateScrollTools();
+}
+function filtersChanged(){cancelScan();state.pendingResort=false;refreshResults();scrollCatalog();startAutomaticScan();}
+function resetFilters(){
+  if($('clear-filters').dataset.action==='retry'){delete $('clear-filters').dataset.action;loadCatalog();return;}
+  $('card-search').value='';$('sort-select').value='number';$('type-select').value='all';state.sort='number';state.type='all';setStatus('all');
+}
+function exportCollection(){
+  const data={format:'pokevault-collection',version:1,exportedAt:new Date().toISOString(),collection:state.collection};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download=`pokevault-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+  showToast('Sauvegarde JSON téléchargée.');
+}
+async function importCollection(file){
+  if(!file)return;
+  if(file.size>2*1024*1024){showToast('Fichier trop volumineux (2 Mo maximum).');return;}
+  try{
+    const data=JSON.parse(await file.text());
+    if(data?.format!=='pokevault-collection'||data.version!==1||!data.collection||typeof data.collection!=='object'||Array.isArray(data.collection))throw Error('Format de sauvegarde non reconnu');
+    const incoming=readCollection(data.collection);
+    if(!Object.keys(incoming).length&&Object.keys(data.collection).length)throw Error('Aucune carte valide dans cette sauvegarde');
+    const merged=mergeCollections(state.collection,incoming);
+    if(!saveCollection(merged))return;
+    state.collection=merged;updateSummary();refreshResults();
+    showToast('Sauvegarde fusionnée : aucune carte existante supprimée.');
+  }catch(error){showToast(error.message||'Impossible de lire cette sauvegarde.');}
+  finally{$('import-file').value='';}
+}
+function installPWA(){if(state.installEvent){state.installEvent.prompt();state.installEvent.userChoice.finally(()=>{state.installEvent=null;$('install-btn').hidden=true;});}else showToast('Sur iPhone/iPad : Partager → Sur l’écran d’accueil.');}
+function registerSW(){if('serviceWorker'in navigator&&(location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname)))navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+
+function bindEvents(){
+  $('sidebar-open').addEventListener('click',openSidebar);$('sidebar-close').addEventListener('click',closeSidebar);$('sidebar-scrim').addEventListener('click',closeSidebar);
+  $('set-search').addEventListener('input',renderSets);
+  $('sets-list').addEventListener('click',event=>{const btn=event.target.closest('[data-set]');if(btn)selectSet(btn.dataset.set);});
+  $('all-sets').addEventListener('click',()=>selectSet('all'));
+  let searchTimer;$('card-search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(filtersChanged,150);});
+  $('sort-select').addEventListener('change',event=>{state.sort=event.target.value;filtersChanged();});
+  $('type-select').addEventListener('change',event=>{state.type=event.target.value;filtersChanged();});
+  $('status-filters').addEventListener('click',event=>{const btn=event.target.closest('[data-status]');if(btn)setStatus(btn.dataset.status);});
+  document.querySelector('.layout-switch').addEventListener('click',event=>{const btn=event.target.closest('button[data-layout]');if(btn)setLayout(btn.dataset.layout);});
+  $('scan-next').addEventListener('click',()=>scanPrices(150));$('scan-all').addEventListener('click',scanAll);$('scan-stop').addEventListener('click',stopScan);
+  $('apply-prices').addEventListener('click',()=>{state.pendingResort=false;refreshResults({keepScroll:true});});
+  $('clear-filters').addEventListener('click',resetFilters);
+  $('cards-grid').addEventListener('click',event=>{const btn=event.target.closest('[data-action]');if(!btn)return;const id=btn.dataset.id;if(btn.dataset.action==='open')openDialog(id);else changeQuantity(id,btn.dataset.action==='plus'?1:-1);});
+  $('cards-grid').addEventListener('load',event=>{if(event.target.matches('img.card-art'))onImageLoad(event.target);},true);
+  $('cards-grid').addEventListener('error',event=>{if(event.target.matches('img.card-art'))onImageError(event.target);},true);
+  $('tab-cards').addEventListener('click',()=>switchTab('cards'));$('tab-guide').addEventListener('click',()=>switchTab('guide'));
+  $('dialog-close').addEventListener('click',closeDialog);
+  $('card-dialog').addEventListener('click',event=>{if(event.target.id==='card-dialog')closeDialog();});
+  $('dialog-image').addEventListener('load',event=>onImageLoad(event.target));
+  $('dialog-image').addEventListener('error',event=>onImageError(event.target));
+  $('retry-image').addEventListener('click',retryImage);
+  $('dialog-plus').addEventListener('click',()=>{if(state.inspected)changeQuantity(state.inspected,1);});
+  $('dialog-minus').addEventListener('click',()=>{if(state.inspected)changeQuantity(state.inspected,-1);});
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){if(!$('card-dialog').hidden)closeDialog();closeSidebar();}
+    if(event.key==='Tab'&&!$('card-dialog').hidden){const buttons=[...$('card-dialog').querySelectorAll('button:not([disabled])')];const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
+  });
+  $('export-btn').addEventListener('click',exportCollection);$('import-btn').addEventListener('click',()=>$('import-file').click());$('import-file').addEventListener('change',event=>importCollection(event.target.files[0]));
+  $('install-btn').addEventListener('click',installPWA);
+  $('jump-top').addEventListener('click',jumpTop);$('jump-bottom').addEventListener('click',jumpBottom);
+  window.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('resize',()=>{state.viewport.stride=0;requestAnimationFrame(()=>renderViewport(true));},{passive:true});
+  window.addEventListener('online',networkStatus);window.addEventListener('offline',()=>{networkStatus();stopScan();});
+  window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();state.installEvent=event;$('install-btn').hidden=false;});
+  if(/iPhone|iPad|iPod/.test(navigator.userAgent)&&!navigator.standalone)$('install-btn').hidden=false;
+}
+bindEvents();networkStatus();updateSummary();registerSW();
+Promise.allSettled([hydrateCache(),loadCatalog()]).then(()=>startAutomaticScan());

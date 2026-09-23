@@ -1,4 +1,4 @@
-# PokéVault Premium · PWA v2
+# PokéVault Premium · PWA v3
 
 Classeur Pokémon rapide et épuré pour mobile, iPad et ordinateur. HTML/CSS/JavaScript natifs, **sans CDN JavaScript**, sans compilation et sans compte utilisateur. Le projet est indépendant et non affilié à The Pokémon Company.
 
@@ -46,8 +46,24 @@ Lorsque les cotes changent pendant un défilement profond, l'application **ne r�
 
 ## PWA et limites
 
-Le service worker v2 conserve le shell, les catalogues déjà consultés, les fiches récentes et jusqu'à 320 images visitées. Les catalogues globaux sont protégés de l'éviction lors des scans de prix. Le premier chargement nécessite le réseau ; une illustration non visitée ne sera pas magiquement disponible hors connexion. La collection reste dans `localStorage`, les caches remplaçables dans IndexedDB/Cache Storage. Testez les quotas réels d'iOS, les erreurs réseau et l'actualisation du service worker sur votre hébergement.
+Le service worker v3 conserve le shell, les catalogues déjà consultés, les fiches récentes et jusqu'à 320 images visitées. Les catalogues globaux sont protégés de l'éviction lors des scans de prix. Le premier chargement nécessite le réseau ; une illustration non visitée ne sera pas magiquement disponible hors connexion. La collection reste dans `localStorage`, les caches remplaçables dans IndexedDB/Cache Storage. Testez les quotas réels d'iOS, les erreurs réseau et l'actualisation du service worker sur votre hébergement.
 
 La PWA **n'est pas une application iOS soumise à l'App Store**. La règle 4.2, les droits sur les images et marques, la politique de confidentialité, la restauration et d'éventuelles fonctionnalités natives devront être étudiés séparément. Aucune validation App Store n'est garantie.
 
 Sources : [TCGdex](https://tcgdex.dev/) · [Documentation Pokémon TCG API (dépréciation)](https://docs.pokemontcg.io/) · [Scrydex](https://scrydex.com/docs).
+
+## Nouveautés v3 : visuels suivis et défilement sans clignotement
+
+La section **Vérification des visuels** reste visible sous celle des cotes et mesure le **périmètre actuellement sélectionné** (recherche, extension, filtre). Elle distingue :
+
+- **Non recherchés / en attente** : aucune vérification complète n'a encore été faite. Ce n'est pas une absence de visuel.
+- **Recherche en cours** : les URL d'illustration sont effectivement testées, puis les sources FR, EN et secondaire sont consultées si nécessaire.
+- **Trouvés** : une image a réellement été chargée, et non simplement mentionnée dans une fiche API.
+- **Introuvables** : les catalogues interrogés n'ont pas fourni de visuel valide ; cet état négatif expire après 24 heures.
+- **À réessayer** : problème réseau, fournisseur indisponible, URL d'image en erreur, source secondaire limitée ou vérification incomplète. Ce statut n'est **jamais** compté comme « introuvable ».
+
+La recherche se poursuit en tâche de fond **tant que l'application reste ouverte**, par lots de deux images, en laissant la priorité au défilement. Le démarrage automatique vérifie jusqu'à 100 cartes dans le catalogue global, ou 300 dans une extension ; les boutons permettent de poursuivre par 100 ou de lancer l'ensemble du périmètre. La source secondaire temporaire reste limitée à 60 requêtes par session : les cartes non vérifiées à cause de cette limite sont signalées comme « à réessayer », pas comme absentes. La mise en pause arrête les nouveaux lots, sans annuler les requêtes déjà lancées. Une application web fermée ne peut pas garantir cette analyse en arrière-plan ; une synchronisation serveur serait nécessaire pour cela.
+
+La grille **réutilise les mêmes éléments DOM** pour les cartes communes entre deux fenêtres de défilement, au lieu de tout reconstruire à chaque mouvement. Elle conserve également jusqu'à 65 tuiles récemment sorties de l'écran et affiche toujours le verso local pendant le chargement initial, avec fondu d'entrée sur le visuel trouvé. Les images résolues restent dans IndexedDB et les fichiers visités dans le cache du service worker. Le comportement réel reste à tester sur les téléphones cibles, notamment en cas de manque de mémoire.
+
+**Compatibilité collection :** la clé `pv_collection`, les quantités et les exports JSON v1 sont inchangés. La nouvelle logique n'écrit que dans les caches d'images. Avant publication, exporter une sauvegarde JSON et conserver la même origine HTTPS pour retrouver automatiquement les données existantes.

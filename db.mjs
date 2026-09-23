@@ -27,3 +27,10 @@ export function putCache(db,store,items) {
     try {const tx=db.transaction(store,'readwrite');const bucket=tx.objectStore(store);for(const item of items)bucket.put(item);tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);tx.onabort=()=>resolve(false);} catch {resolve(false);}
   });
 }
+export function deleteCache(db,store,id){
+  if(!db)return Promise.resolve(false);
+  return new Promise(resolve=>{
+    try{const tx=db.transaction(store,'readwrite');tx.objectStore(store).delete(id);tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);tx.onabort=()=>resolve(false);}
+    catch{resolve(false);}
+  });
+}

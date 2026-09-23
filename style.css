@@ -54,3 +54,25 @@
   .filters-row{gap:.45rem;margin-bottom:.4rem}
   .list-meta{margin:.6rem 0 .7rem}
 }
+
+/* V3: a stable local card back is shown until a real image is decoded. */
+.card-open .card-ghost,.dialog-image-holder .card-ghost{
+  background:#16243a url('./assets/card-back.svg') center / contain no-repeat;
+  transition:opacity .2s ease;
+}
+.card-ghost .ghost-label{
+  position:absolute;bottom:.45rem;left:.45rem;right:.45rem;
+  display:block;padding:.38rem .45rem;border-radius:8px;
+  color:#edf6f4;background:#101b28e8;border:1px solid #e1e7ed22;
+  font-size:clamp(.55rem,.85vw,.7rem);font-weight:700;letter-spacing:0;line-height:1.25;
+  text-shadow:0 1px 2px #0009;opacity:1;
+}
+.card-ghost .ghost-label:empty{display:none}
+.card-open:has(img.is-loaded) .card-ghost,.dialog-image-holder:has(img.is-loaded) .card-ghost{pointer-events:none}
+.image-coverage{background:linear-gradient(135deg,#1b2735,#17292b);border-color:#8acde642}
+.image-coverage .price-coverage-heading span{color:#a8ddec}
+.image-coverage progress::-webkit-progress-value{background:#83cdeb}
+.image-coverage progress::-moz-progress-bar{background:#83cdeb}
+@media(prefers-reduced-motion:reduce){.card-open img,.dialog-image-holder img,.card-ghost{transition:none!important}}
+
+.virtual-spacer,.cards-grid{overflow-anchor:none}

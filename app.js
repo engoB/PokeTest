@@ -2,8 +2,9 @@ import {
   normalize, escapeHtml, numeric, parsePrice, formatEuro, readCollection, mergeCollections,
   imageUrls, trustedImageUrl, matchAlternativeCard, cardMatchesType, sortCards, priceCoverage, PRICE_TTL
 } from './core.mjs';
-import {openCache,loadCache,putCache} from './db.mjs';
+import {openCache,loadCache,putCache,deleteCache} from './db.mjs';
 import {windowRows} from './virtual-grid.mjs';
+import {imageState,imageCoverage} from './image-state.mjs';
 
 const API='https://api.tcgdex.net/v2';
 // Transitional, unauthenticated fallback only. The legacy provider retires March 2027.
@@ -14,6 +15,8 @@ const state={
   allSets:[],allCards:[],cards:[],cardIndex:new Map(),selectedSet:'all',status:'all',type:'all',sort:'number',
   layout:'comfortable',collection:{},prices:{},db:null,dirtyPrices:new Set(),details:new Map(),pendingDetails:new Map(),
   imageRecords:new Map(),imageExtras:new Map(),imageFailures:new Map(),pendingFallback:new Map(),english:new Map(),
+  tileCache:new Map(),imageProviderErrors:new Set(),imageTransient:new Map(),imageScanToken:0,imageScanning:false,imagePaused:false,imageScanScope:[],imageScanLimit:0,
+  pendingEnglish:new Map(),imageCoverageTimer:0,imageAutoTimer:0,
   englishSets:new Map(),altChecked:new Set(),altAttempted:new Set(),altCalls:0,altLastCall:0,altTail:Promise.resolve(),queue:[],running:0,
   scope:[],display:[],viewport:{startRow:-1,endRow:-1,columns:0,stride:0},scrollFrame:0,lastScroll:0,
   inspected:null,requestId:0,scanToken:0,scanning:false,scanAll:false,pendingResort:false,installEvent:null
@@ -50,7 +53,7 @@ async function hydrateCache(){
   // Browsers in private mode can deny IndexedDB. Preserve a small localStorage fallback.
   if(!state.db)for(const [id,entry] of Object.entries(storage('pv_image_resolutions_v1',{})))state.imageRecords.set(id,entry);
   updateSummary();
-  if(state.cards.length)refreshResults();
+  if(state.cards.length){refreshResults();startAutomaticImageScan();}
 }
 let priceFlushTimer;
 function flushPricesSoon(){clearTimeout(priceFlushTimer);priceFlushTimer=setTimeout(async()=>{
@@ -94,7 +97,7 @@ function indexCards(cards){for(const card of cards)state.cardIndex.set(card.id,c
 function cancelScan(){state.scanToken++;state.scanning=false;state.scanAll=false;}
 async function loadCatalog(){
   const seq=++state.requestId;
-  cancelScan();$('counter').textContent='Chargement du catalogue…';$('cards-grid').setAttribute('aria-busy','true');
+  cancelScan();cancelImageScan();$('counter').textContent='Chargement du catalogue…';$('cards-grid').setAttribute('aria-busy','true');
   const [sets,cards]=await Promise.allSettled([getJSON('fr/sets'),getJSON('fr/cards')]);
   if(seq!==state.requestId)return;
   if(sets.status==='fulfilled'){
@@ -107,7 +110,7 @@ async function loadCatalog(){
     $('empty-state').querySelector('h2').textContent='Aucune carte trouvée';
     $('empty-state').querySelector('p').textContent='Modifiez votre recherche ou vos filtres.';
     $('clear-filters').textContent='Réinitialiser les filtres';delete $('clear-filters').dataset.action;
-    refreshResults();
+    refreshResults();startAutomaticImageScan();
     // Owned cards get priority for portfolio accuracy without touching the collection itself.
     for(const id of Object.keys(state.collection).slice(0,60))if(!isFresh(id))requestDetail(id).catch(()=>{});
   }else{
@@ -118,17 +121,17 @@ async function loadCatalog(){
   }
 }
 async function selectSet(id){
-  const seq=++state.requestId;cancelScan();closeSidebar();state.selectedSet=id;
+  const seq=++state.requestId;cancelScan();cancelImageScan();closeSidebar();state.selectedSet=id;
   const set=state.allSets.find(s=>s.id===id);
   $('current-set-title').textContent=id==='all'?'Toutes les cartes':set?.name||id;
   $('set-subtitle').textContent=id==='all'?'Retrouvez chaque carte, série par série.':`${set?.cardCount?.total??'—'} cartes dans cette extension`;
   renderSets();
-  if(id==='all'){state.cards=state.allCards;refreshResults();scrollCatalog();startAutomaticScan();return;}
+  if(id==='all'){state.cards=state.allCards;refreshResults();scrollCatalog();startAutomaticScan();startAutomaticImageScan();return;}
   $('counter').textContent='Chargement de l’extension…';state.cards=[];refreshResults();
   try{
     const detail=await getJSON(`fr/sets/${encodeURIComponent(id)}`);
     if(seq!==state.requestId)return;
-    state.cards=detail.cards||[];indexCards(state.cards);refreshResults();scrollCatalog();startAutomaticScan();
+    state.cards=detail.cards||[];indexCards(state.cards);refreshResults();scrollCatalog();startAutomaticScan();startAutomaticImageScan();
   }catch{if(seq===state.requestId){state.cards=[];refreshResults();showToast('Extension momentanément indisponible.');}}
 }
 function baseScope(){
@@ -159,7 +162,7 @@ function refreshResults({keepScroll=false}={}){
     $('empty-state').querySelector('h2').textContent='Aucune carte trouvée';
     $('empty-state').querySelector('p').textContent='Modifiez votre recherche ou vos filtres.';
   }
-  updateCoverage();renderViewport(true);
+  updateCoverage();scheduleImageCoverage();renderViewport(true);
   if(!keepScroll)updateScrollTools();
 }
 function updateCoverage(){
@@ -178,6 +181,138 @@ function updateCoverage(){
   $('scan-all').disabled=state.scanning;
   $('scan-stop').hidden=!state.scanning;
   $('apply-prices').hidden=!state.pendingResort;
+}
+// The visual scanner is independent of price verification. It keeps working while
+// users browse and never writes to pv_collection. Only a successfully loaded image
+// or a completed multi-source miss counts as verified.
+function currentImageScope(){return state.scope;}
+function scheduleImageCoverage(){
+  if(state.imageCoverageTimer)return;
+  state.imageCoverageTimer=setTimeout(()=>{state.imageCoverageTimer=0;updateImageCoverage();},350);
+}
+function updateImageCoverage(){
+  const stats=imageCoverage(currentImageScope(),state.imageRecords,state.imageTransient);
+  $('image-progress').textContent=`${stats.checked.toLocaleString('fr-FR')} / ${stats.total.toLocaleString('fr-FR')} vérifiés · ${stats.found.toLocaleString('fr-FR')} trouvés · ${stats.missing.toLocaleString('fr-FR')} introuvables`;
+  $('image-progress-bar').max=Math.max(1,stats.total);
+  $('image-progress-bar').value=stats.checked;
+  const remaining=stats.pending+stats.error+stats.checking;
+  const suffix=stats.error?` · ${stats.error.toLocaleString('fr-FR')} à réessayer`:'';
+  const quota=state.altCalls>=60?' · Limite de la source secondaire atteinte pour cette session.':'';
+  $('image-warning').textContent=state.imageScanning
+    ?`Recherche en arrière-plan · ${stats.checking} en cours · ${stats.pending} en attente${suffix}${quota}. Vous pouvez continuer à défiler.`
+    :state.imagePaused?`Recherche en pause · ${remaining} à vérifier${suffix}${quota}. Les images déjà trouvées restent en cache.`
+    :remaining?`${stats.pending} non encore recherchés${suffix}${quota}. « Introuvable » signifie que les sources ont été vérifiées.`
+    :'Périmètre vérifié. Les échecs confirmés seront retentés après 24 h.';
+  $('image-next').hidden=remaining===0;
+  $('image-next').disabled=state.imageScanning||!navigator.onLine;
+  $('image-next').textContent=`Vérifier ${Math.min(100,remaining)} visuels`;
+  $('image-all').hidden=remaining<=100;
+  $('image-all').disabled=state.imageScanning||!navigator.onLine;
+  $('image-stop').hidden=!state.imageScanning;
+  $('image-status').textContent=state.imageScanning?'Analyse active':state.imagePaused?'En pause':remaining?'Prête à analyser':'À jour';
+}
+function markImageStatus(id,status){
+  if(status==='found'||status==='missing')state.imageTransient.delete(id);
+  else state.imageTransient.set(id,status);
+  for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){
+    const label=tile.querySelector('.ghost-label');if(label)label.textContent=imageLabel(id);
+  }
+  if(state.inspected===id){$('dialog-image-holder').querySelector('.ghost-label').textContent=imageLabel(id);updateImageSource(id);}
+  scheduleImageCoverage();
+}
+function imageLabel(id){
+  const status=imageState(id,state.imageRecords,state.imageTransient);
+  return status==='checking'?'Recherche en cours…':status==='missing'?'Aucun visuel trouvé':status==='error'?'Recherche à reprendre':status==='found'?'':'Recherche non commencée';
+}
+function cancelImageScan(){state.imageScanToken++;state.imageScanning=false;clearTimeout(state.imageAutoTimer);scheduleImageCoverage();}
+function stopImageScan(){state.imagePaused=true;cancelImageScan();}
+function imageCandidates(){
+  const cards=currentImageScope();
+  const owned=[],visible=[],rest=[];
+  const displayed=new Set([...$('cards-grid').querySelectorAll('.card-tile')].map(tile=>tile.dataset.id));
+  for(const card of cards){
+    const status=imageState(card.id,state.imageRecords,state.imageTransient);
+    if(status==='found'||status==='missing'||status==='checking')continue;
+    if(state.collection[card.id])owned.push(card);
+    else if(displayed.has(card.id))visible.push(card);
+    else rest.push(card);
+  }
+  return [...owned,...visible,...rest];
+}
+function startAutomaticImageScan(){
+  if(state.imagePaused||state.imageScanning||!state.cards.length||!navigator.onLine)return;
+  clearTimeout(state.imageAutoTimer);
+  state.imageAutoTimer=setTimeout(()=>{
+    if(state.imagePaused||state.imageScanning)return;
+    const remaining=imageCandidates().length;
+    if(remaining)scanImages(Math.min(remaining,state.selectedSet==='all'?100:300));
+  },650);
+}
+function probeImage(url,timeout=8500){
+  return new Promise(resolve=>{
+    const img=new Image();let finished=false;
+    const done=result=>{if(finished)return;finished=true;clearTimeout(timer);img.onload=null;img.onerror=null;resolve(result);};
+    const timer=setTimeout(()=>done('timeout'),timeout);
+    img.onload=()=>done('loaded');img.onerror=()=>done('failed');img.src=url;
+  });
+}
+async function verifyCardImage(id){
+  if(imageState(id,state.imageRecords,state.imageTransient)==='found'||imageState(id,state.imageRecords,state.imageTransient)==='missing')return;
+  markImageStatus(id,'checking');
+  const tried=new Set();let uncertain=false;
+  try{
+    for(let pass=0;pass<5;pass++){
+      if(!navigator.onLine){uncertain=true;break;}
+      const options=imageOptions(id,'low').filter(item=>!tried.has(item.url)&&!state.imageFailures.get(id)?.has(item.url));
+      for(const candidate of options){
+        if(imageState(id,state.imageRecords,state.imageTransient)==='found')return; // A visible image already succeeded.
+        tried.add(candidate.url);
+        const outcome=await probeImage(candidate.url);
+        if(outcome==='loaded'){
+          if(imageState(id,state.imageRecords,state.imageTransient)!=='found')persistImage(id,{...candidate.entry,url:candidate.url});
+          applyImageToVisible(id);
+          return;
+        }
+        if(outcome==='timeout')uncertain=true;
+        else{
+          const failed=state.imageFailures.get(id)||new Set();failed.add(candidate.url);state.imageFailures.set(id,failed);
+        }
+      }
+      if(imageState(id,state.imageRecords,state.imageTransient)==='found')return;
+      const before=state.imageExtras.get(id)?.length||0;
+      const found=await ensureFallback(id);
+      if(!found&&before===(state.imageExtras.get(id)?.length||0))break;
+    }
+    if(imageState(id,state.imageRecords,state.imageTransient)==='found')return;
+    // A successful secondary catalog query with no image match is a confirmed miss.
+    // Broken image URLs, quota exhaustion and network errors are NOT confirmed misses.
+    if(!uncertain&&!state.imageProviderErrors.has(id)&&state.altChecked.has(id)&&!tried.size&&!imageOptions(id,'low').length){
+      persistImage(id,{source:'missing',verificationVersion:3,missingUntil:Date.now()+24*60*60*1000});
+    }else if(imageState(id,state.imageRecords,state.imageTransient)!=='missing')markImageStatus(id,'error');
+  }catch{markImageStatus(id,'error');}
+}
+async function scanImages(limit=100){
+  if(state.imageScanning||!navigator.onLine)return;
+  state.imagePaused=false;const token=++state.imageScanToken;
+  const candidates=imageCandidates().slice(0,limit);
+  for(const card of candidates)if(state.imageTransient.get(card.id)==='error'){state.imageFailures.delete(card.id);state.imageProviderErrors.delete(card.id);if(!state.altChecked.has(card.id))state.altAttempted.delete(card.id);}
+  state.imageScanning=true;updateImageCoverage();
+  try{
+    for(let i=0;i<candidates.length;i+=2){
+      if(token!==state.imageScanToken||!navigator.onLine)break;
+      // Don't compete with rendering during a fast scroll.
+      if(Date.now()-state.lastScroll<140)await sleep(180);
+      if(token!==state.imageScanToken)break;
+      await Promise.allSettled(candidates.slice(i,i+2).map(card=>verifyCardImage(card.id)));
+      if(i%8===0)updateImageCoverage();
+      await sleep(140);
+    }
+  }finally{if(token===state.imageScanToken){state.imageScanning=false;updateImageCoverage();}}
+}
+function scanAllImages(){
+  const count=imageCandidates().length;
+  if(count>500&&!confirm(`Vérifier ${count.toLocaleString('fr-FR')} illustrations peut durer longtemps et solliciter les catalogues externes. Continuer ?`))return;
+  scanImages(count);
 }
 let refreshPriceTimer;
 function schedulePriceRefresh(){
@@ -251,11 +386,46 @@ function renderViewport(force=false){
   state.viewport.startRow=range.startRow;state.viewport.endRow=range.endRow;
   $('grid-top').style.height=`${range.top}px`;
   $('grid-bottom').style.height=`${range.bottom}px`;
-  imageObserver?.disconnect();
-  grid.innerHTML=state.display.slice(range.start,range.end).map((card,i)=>cardMarkup(card,range.start+i)).join('');
+  const wanted=state.display.slice(range.start,range.end);
+  const previous=new Map([...grid.querySelectorAll('.card-tile')].map(tile=>[tile.dataset.id,tile]));
+  const created=[];
+  const desired=wanted.map((card,i)=>{
+    let tile=previous.get(card.id)||state.tileCache.get(card.id);
+    if(state.tileCache.has(card.id))state.tileCache.delete(card.id);
+    if(!tile){
+      const holder=document.createElement('template');holder.innerHTML=cardMarkup(card,range.start+i);
+      tile=holder.content.firstElementChild;created.push(tile);
+      const image=tile.querySelector('img.card-art');
+      image.addEventListener('load',()=>onImageLoad(image));
+      image.addEventListener('error',()=>onImageError(image));
+    }
+    tile.setAttribute('aria-posinset',String(range.start+i+1));
+    const price=tile.querySelector('[data-role=price]');if(price)price.textContent=trend(card.id)===null?'Cote —':formatEuro(trend(card.id));
+    const qty=state.collection[card.id]||0;tile.dataset.owned=String(qty>0);
+    const owned=tile.querySelector('[data-role=owned]');if(qty){if(owned)owned.textContent=`×${qty}`;else tile.querySelector('.card-open').insertAdjacentHTML('beforeend',`<span class="owned-pill" data-role="owned">×${qty}</span>`);}else owned?.remove();
+    tile.querySelector('[data-action=minus]').hidden=!qty;
+    const label=tile.querySelector('.ghost-label');if(label)label.textContent=imageLabel(card.id);
+    return tile;
+  });
+  // insertBefore moves retained elements in place, preserving their <img> load state.
+  let cursor=grid.firstElementChild;
+  for(const tile of desired){
+    if(tile===cursor){cursor=cursor.nextElementSibling;continue;}
+    grid.insertBefore(tile,cursor);
+  }
+  while(cursor){
+    const next=cursor.nextElementSibling;imageObserver?.unobserve(cursor);cursor.remove();
+    if(cursor.classList.contains('card-tile')){
+      state.tileCache.delete(cursor.dataset.id);state.tileCache.set(cursor.dataset.id,cursor);
+      while(state.tileCache.size>65)state.tileCache.delete(state.tileCache.keys().next().value);
+    }
+    cursor=next;
+  }
   grid.setAttribute('aria-busy','false');
-  for(const tile of grid.querySelectorAll('.card-tile')){
-    if(imageObserver)imageObserver.observe(tile);else activateTile(tile);
+  for(const tile of desired){
+    const img=tile.querySelector('img.card-art');
+    if(img?.__loading&&img.complete){if(img.naturalWidth)onImageLoad(img);else onImageError(img);}
+    if(!img?.classList.contains('is-loaded')&&!img?.__loading){if(imageObserver)imageObserver.observe(tile);else activateTile(tile);}
   }
   const first=grid.querySelector('.card-tile');
   if(first){
@@ -283,11 +453,11 @@ function scrollCatalog(){
 }
 function jumpTop(){window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
 function jumpBottom(){window.scrollTo({top:document.documentElement.scrollHeight-window.innerHeight,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
-function ghostMarkup(){return '<div class="card-ghost" aria-hidden="true"><span class="ghost-label">Visuel en attente</span></div>';}
+function ghostMarkup(id){return `<div class="card-ghost" aria-hidden="true"><span class="ghost-label">${escapeHtml(imageLabel(id))}</span></div>`;}
 function cardMarkup(c,index){
   const quantity=state.collection[c.id]||0;
   const p=trend(c.id);
-  return `<article class="card-tile" aria-posinset="${index+1}" aria-setsize="${state.display.length}" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup()}<img class="card-art" alt="Illustration de ${escapeHtml(c.name)}" loading="lazy" decoding="async" hidden><span class="price-pill" data-role="price">${p!==null?formatEuro(p):'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;
+  return `<article class="card-tile" aria-posinset="${index+1}" aria-setsize="${state.display.length}" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup(c.id)}<img class="card-art" alt="Illustration de ${escapeHtml(c.name)}" loading="lazy" decoding="async" hidden><span class="price-pill" data-role="price">${p!==null?formatEuro(p):'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;
 }
 function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const el=tile.querySelector('[data-role=price]');if(el)el.textContent=trend(id)===null?'Cote —':formatEuro(trend(id));}}
 function updateTileQuantity(id){
@@ -336,14 +506,19 @@ function addExtra(id,entry){
   state.imageExtras.set(id,extras);
 }
 function candidateUrls(entry,quality){
-  if(entry.base)return imageUrls(entry.base,quality).map(url=>({url,entry}));
-  const urls=quality==='high'?[entry.large,entry.small]:[entry.small,entry.large];
+  const verified=trustedImageUrl(entry.url);
+  if(entry.base){
+    const normal=imageUrls(entry.base,quality);
+    const urls=quality==='low'&&verified?.includes('/high.')?[...normal,verified]:[verified,...normal];
+    return [...new Set(urls.filter(Boolean))].map(url=>({url,entry}));
+  }
+  const urls=quality==='high'?[entry.large,verified,entry.small]:[verified===entry.large?entry.small:verified,entry.small,entry.large];
   return [...new Set(urls.map(trustedImageUrl).filter(Boolean))].map(url=>({url,entry}));
 }
 function imageOptions(id,quality){
   const card=state.cardIndex.get(id);
   const record=state.imageRecords.get(id);
-  if(record?.missingUntil>Date.now())return [];
+  if(record?.verificationVersion===3&&record?.missingUntil>Date.now())return [];
   const candidates=[];
   if(record?.source&&record.source!=='missing')candidates.push(record);
   if(card?.image)candidates.push({source:'tcgdex-fr',base:card.image});
@@ -362,19 +537,22 @@ function nextImage(img,id){
   if(!candidate)return false;
   if(!img.__tried)img.__tried=new Set();
   img.__tried.add(candidate.url);img.__candidate=candidate;
-  img.hidden=false;img.classList.remove('is-loaded');img.src=candidate.url;
+  img.hidden=false;img.__loading=true;img.classList.remove('is-loaded');
+  const status=imageState(id,state.imageRecords,state.imageTransient);
+  if(status==='pending'||status==='error')markImageStatus(id,'checking');
+  img.src=candidate.url;
   return true;
 }
 function applyImageToVisible(id){
   for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){
     const img=tile.querySelector('img.card-art');
-    if(img&&!img.classList.contains('is-loaded')&&!img.__resolving)nextImage(img,id);
+    if(img&&!img.classList.contains('is-loaded')&&!img.__resolving&&!img.__loading)nextImage(img,id);
   }
-  if(state.inspected===id){const img=$('dialog-image');if(!img.classList.contains('is-loaded')&&!img.__resolving)nextImage(img,id);}
+  if(state.inspected===id){const img=$('dialog-image');if(!img.classList.contains('is-loaded')&&!img.__resolving&&!img.__loading)nextImage(img,id);}
 }
 function persistImage(id,entry){
   const saved={...entry,checkedAt:Date.now()};
-  state.imageRecords.set(id,saved);
+  state.imageRecords.set(id,saved);markImageStatus(id,saved.source==='missing'?'missing':'found');
   putCache(state.db,'images',[{id,...saved}]).then(ok=>{
     if(ok)return;
     const fallback=storage('pv_image_resolutions_v1',{});
@@ -383,11 +561,23 @@ function persistImage(id,entry){
     try{localStorage.setItem('pv_image_resolutions_v1',JSON.stringify(Object.fromEntries(latest)));}catch{}
   });
 }
+function forgetImage(id){
+  state.imageRecords.delete(id);
+  deleteCache(state.db,'images',id).catch(()=>{});
+  const fallback=storage('pv_image_resolutions_v1',{});
+  if(Object.hasOwn(fallback,id)){
+    delete fallback[id];
+    try{localStorage.setItem('pv_image_resolutions_v1',JSON.stringify(fallback));}catch{}
+  }
+  scheduleImageCoverage();
+}
 function onImageLoad(img){
-  img.classList.add('is-loaded');img.hidden=false;
+  img.__loading=false;img.classList.add('is-loaded');img.hidden=false;
   const id=imageId(img),entry=img.__candidate?.entry;
   if(!id||!entry)return;
-  if(entry.source!=='tcgdex-fr'&&state.imageRecords.get(id)?.source!==entry.source)persistImage(id,entry);
+  const url=img.__candidate.url;
+  if(state.imageRecords.get(id)?.url!==url)persistImage(id,{...entry,url});
+  else markImageStatus(id,'found');
   if(state.inspected===id)updateImageSource(id);
 }
 function onImageError(img){
@@ -395,19 +585,20 @@ function onImageError(img){
   const failed=state.imageFailures.get(id)||new Set();
   if(img.__candidate?.url)failed.add(img.__candidate.url);
   state.imageFailures.set(id,failed);
-  img.classList.remove('is-loaded');img.hidden=true;
+  img.__loading=false;img.classList.remove('is-loaded');img.hidden=true;
+  if(state.imageRecords.get(id)?.url===img.__candidate?.url){addExtra(id,state.imageRecords.get(id));forgetImage(id);markImageStatus(id,'checking');}
   if(!nextImage(img,id))findFallbackForElement(img,id);
 }
 async function getEnglish(id){
   if(state.english.has(id))return state.english.get(id);
-  let result=null;
-  try{result=await enqueue(()=>getJSON(`en/cards/${encodeURIComponent(id)}`),true);}catch{}
-  state.english.set(id,result);
-  return result;
+  if(state.pendingEnglish.has(id))return state.pendingEnglish.get(id);
+  const promise=enqueue(()=>getJSON(`en/cards/${encodeURIComponent(id)}`),true).then(result=>{state.english.set(id,result);return result;}).catch(error=>{if(error.message==='TCGdex 404')state.english.set(id,null);else state.imageProviderErrors.add(id);return null;});
+  state.pendingEnglish.set(id,promise);
+  promise.finally(()=>state.pendingEnglish.delete(id)).catch(()=>{});
+  return promise;
 }
 async function secondaryImage(id,english){
   if(state.altChecked.has(id)||state.altAttempted.has(id)||state.altCalls>=60||!navigator.onLine)return false;
-  state.altAttempted.add(id);
   const card=state.cardIndex.get(id);
   let set=english?.set;
   if(!set?.name){
@@ -416,6 +607,7 @@ async function secondaryImage(id,english){
     set=await state.englishSets.get(setId);
   }
   if(!set?.name||!card?.localId)return false;
+  state.altAttempted.add(id);
   // Serialize secondary calls: rapid scrolling must not cause a burst of requests.
   const run=state.altTail.catch(()=>{}).then(async()=>{
     if(state.altCalls>=60)return false;
@@ -434,13 +626,13 @@ async function secondaryImage(id,english){
     return false;
   });
   state.altTail=run.catch(()=>{});
-  return run;
+  return run.catch(error=>{state.altAttempted.delete(id);state.imageProviderErrors.add(id);throw error;});
 }
 async function ensureFallback(id,{force=false}={}){
   if(state.pendingFallback.has(id))return state.pendingFallback.get(id);
   if(!navigator.onLine)return false;
   const cached=state.imageRecords.get(id);
-  if(!force&&cached?.missingUntil>Date.now())return false;
+  if(!force&&cached?.verificationVersion===3&&cached?.missingUntil>Date.now())return false;
   const promise=(async()=>{
     const card=state.cardIndex.get(id);
     try{
@@ -450,21 +642,21 @@ async function ensureFallback(id,{force=false}={}){
         const failed=state.imageFailures.get(id)||new Set();
         if(imageUrls(detail.image).some(url=>!failed.has(url)))return true;
       }
-    }catch{return false;}
+    }catch(error){if(error.message!=='TCGdex 404')state.imageProviderErrors.add(id);/* Continue with EN even if FR fails. */}
     if(!state.english.has(id)){
       const english=await getEnglish(id);
-      if(english?.image){addExtra(id,{source:'tcgdex-en',base:english.image});return true;}
+      if(english?.image){addExtra(id,{source:'tcgdex-en',base:english.image});if(imageOptions(id,'low').some(c=>!state.imageFailures.get(id)?.has(c.url)))return true;}
     }
     const english=state.english.get(id);
     if(english?.image&&!state.imageExtras.get(id)?.some(e=>e.source==='tcgdex-en')){
-      addExtra(id,{source:'tcgdex-en',base:english.image});return true;
+      addExtra(id,{source:'tcgdex-en',base:english.image});if(imageOptions(id,'low').some(c=>!state.imageFailures.get(id)?.has(c.url)))return true;
     }
     if(!state.altChecked.has(id)&&!state.altAttempted.has(id)){
-      try{if(await secondaryImage(id,english))return true;}
+      try{if(await secondaryImage(id,english)&&imageOptions(id,'low').some(c=>!state.imageFailures.get(id)?.has(c.url)))return true;}
       catch{return false;} // Network errors must never become permanent negative cache entries.
     }
     // Cache only a confirmed miss, never a quota, offline or network failure.
-    if(state.altChecked.has(id))persistImage(id,{source:'missing',missingUntil:Date.now()+24*60*60*1000});
+    if(state.altChecked.has(id)&&!state.imageProviderErrors.has(id)&&!(state.imageFailures.get(id)?.size))persistImage(id,{source:'missing',verificationVersion:3,missingUntil:Date.now()+24*60*60*1000});
     return false;
   })();
   state.pendingFallback.set(id,promise);
@@ -473,12 +665,12 @@ async function ensureFallback(id,{force=false}={}){
 }
 async function findFallbackForElement(img,id){
   if(img.__resolving)return;
-  img.__resolving=true;
+  img.__resolving=true;if(imageState(id,state.imageRecords,state.imageTransient)!=='found')markImageStatus(id,'checking');
   try{
     const found=await ensureFallback(id);
     if(img.isConnected&&imageId(img)===id){
       if(found&&!nextImage(img,id))img.hidden=true;
-      else if(!found)img.hidden=true;
+      else if(!found){img.hidden=true;if(imageState(id,state.imageRecords,state.imageTransient)!=='missing')markImageStatus(id,'error');}
     }
     applyImageToVisible(id);
   }finally{img.__resolving=false;}
@@ -489,21 +681,27 @@ const imageObserver=('IntersectionObserver'in window)?new IntersectionObserver(e
 function activateTile(tile){
   const id=tile.dataset.id,img=tile.querySelector('img.card-art');
   if(!img||!state.cardIndex.has(id))return;
-  if(!nextImage(img,id))findFallbackForElement(img,id);
+  if(!img.classList.contains('is-loaded')&&!img.__loading){
+    if(!nextImage(img,id))findFallbackForElement(img,id);
+  }
   // Only visible cards request details; price-mode scanning is a separate bounded operation.
   if(!isFresh(id))requestDetail(id,true).catch(()=>{});
 }
 async function retryImage(){
   const id=state.inspected;if(!id)return;
-  state.imageFailures.delete(id);state.altChecked.delete(id);state.altAttempted.delete(id);state.english.delete(id);state.imageExtras.delete(id);
-  state.imageRecords.delete(id);$('dialog-image').__tried=new Set();$('dialog-image').classList.remove('is-loaded');
+  state.imageFailures.delete(id);state.imageProviderErrors.delete(id);state.altChecked.delete(id);state.altAttempted.delete(id);state.english.delete(id);state.imageExtras.delete(id);
+  forgetImage(id);state.imageTransient.delete(id);scheduleImageCoverage();$('dialog-image').__tried=new Set();$('dialog-image').classList.remove('is-loaded');
   $('dialog-image').hidden=true;showToast('Nouvelle recherche de l’illustration…');
   if(!nextImage($('dialog-image'),id))await ensureFallback(id,{force:true});
   applyImageToVisible(id);
 }
 function updateImageSource(id){
   const source=state.imageRecords.get(id)?.source;
-  $('dialog-image-source').textContent=source==='pokemon-tcg-api'?'Illustration : Pokémon TCG API (source secondaire)'
+  const status=imageState(id,state.imageRecords,state.imageTransient);
+  $('dialog-image-source').textContent=status==='checking'?'Illustration : recherche en cours…'
+    :status==='error'?'Illustration : recherche incomplète, réessayer'
+    :status==='pending'?'Illustration : pas encore vérifiée'
+    :source==='pokemon-tcg-api'?'Illustration : Pokémon TCG API (source secondaire)'
     :source==='tcgdex-en'?'Illustration : TCGdex EN':source==='missing'?'Illustration introuvable · verso provisoire':'Illustration : TCGdex';
 }
 
@@ -540,7 +738,7 @@ function switchTab(tab){
   for(const [id,active] of [['tab-cards',cards],['tab-guide',!cards]]){$(id).classList.toggle('is-active',active);$(id).setAttribute('aria-selected',String(active));}
   if(!cards)closeSidebar();else renderViewport(true);updateScrollTools();
 }
-function filtersChanged(){cancelScan();state.pendingResort=false;refreshResults();scrollCatalog();startAutomaticScan();}
+function filtersChanged(){cancelScan();cancelImageScan();state.pendingResort=false;refreshResults();scrollCatalog();startAutomaticScan();startAutomaticImageScan();}
 function resetFilters(){
   if($('clear-filters').dataset.action==='retry'){delete $('clear-filters').dataset.action;loadCatalog();return;}
   $('card-search').value='';$('sort-select').value='number';$('type-select').value='all';state.sort='number';state.type='all';setStatus('all');
@@ -583,10 +781,9 @@ function bindEvents(){
   document.querySelector('.layout-switch').addEventListener('click',event=>{const btn=event.target.closest('button[data-layout]');if(btn)setLayout(btn.dataset.layout);});
   $('scan-next').addEventListener('click',()=>scanPrices(150));$('scan-all').addEventListener('click',scanAll);$('scan-stop').addEventListener('click',stopScan);
   $('apply-prices').addEventListener('click',()=>{state.pendingResort=false;refreshResults({keepScroll:true});});
+  $('image-next').addEventListener('click',()=>scanImages(100));$('image-all').addEventListener('click',scanAllImages);$('image-stop').addEventListener('click',stopImageScan);
   $('clear-filters').addEventListener('click',resetFilters);
   $('cards-grid').addEventListener('click',event=>{const btn=event.target.closest('[data-action]');if(!btn)return;const id=btn.dataset.id;if(btn.dataset.action==='open')openDialog(id);else changeQuantity(id,btn.dataset.action==='plus'?1:-1);});
-  $('cards-grid').addEventListener('load',event=>{if(event.target.matches('img.card-art'))onImageLoad(event.target);},true);
-  $('cards-grid').addEventListener('error',event=>{if(event.target.matches('img.card-art'))onImageError(event.target);},true);
   $('tab-cards').addEventListener('click',()=>switchTab('cards'));$('tab-guide').addEventListener('click',()=>switchTab('guide'));
   $('dialog-close').addEventListener('click',closeDialog);
   $('card-dialog').addEventListener('click',event=>{if(event.target.id==='card-dialog')closeDialog();});
@@ -604,9 +801,9 @@ function bindEvents(){
   $('jump-top').addEventListener('click',jumpTop);$('jump-bottom').addEventListener('click',jumpBottom);
   window.addEventListener('scroll',onScroll,{passive:true});
   window.addEventListener('resize',()=>{state.viewport.stride=0;requestAnimationFrame(()=>renderViewport(true));},{passive:true});
-  window.addEventListener('online',networkStatus);window.addEventListener('offline',()=>{networkStatus();stopScan();});
+  window.addEventListener('online',()=>{networkStatus();startAutomaticImageScan();});window.addEventListener('offline',()=>{networkStatus();stopScan();cancelImageScan();});
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();state.installEvent=event;$('install-btn').hidden=false;});
   if(/iPhone|iPad|iPod/.test(navigator.userAgent)&&!navigator.standalone)$('install-btn').hidden=false;
 }
 bindEvents();networkStatus();updateSummary();registerSW();
-Promise.allSettled([hydrateCache(),loadCatalog()]).then(()=>startAutomaticScan());
+Promise.allSettled([hydrateCache(),loadCatalog()]).then(()=>{startAutomaticScan();startAutomaticImageScan();updateImageCoverage();});

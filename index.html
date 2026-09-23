@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <link rel="stylesheet" href="./style.css">
   <title>PokéVault — Mon classeur</title>
-  <script defer src="./app.bundle.js?v=3.1.0"></script>
+  <script defer src="./app.bundle.js?v=4.0.0"></script>
   <script>
     window.addEventListener('load', () => setTimeout(() => {
       if (window.__pvBooted) return;
@@ -60,7 +60,7 @@
         <div class="sidebar-bottom">
           <span class="eyebrow">MA COLLECTION · SUR CET APPAREIL</span>
           <p class="sidebar-note">Vos cartes restent sur cet appareil. Exportez-les pour conserver une copie.</p>
-          <div class="sidebar-tools"><button id="export-btn" class="button button-outline" type="button">Exporter</button><button id="import-btn" class="button button-outline" type="button">Importer</button></div>
+          <div class="sidebar-tools"><button id="export-btn" class="button button-outline" type="button">Exporter</button><button id="export-images" class="button button-outline" type="button" title="Exporter les correspondances déjà vérifiées pour préparer un pack natif">Index visuels</button><button id="import-btn" class="button button-outline" type="button">Importer</button></div>
           <input id="import-file" type="file" accept="application/json,.json" hidden>
         </div>
       </aside>
@@ -96,7 +96,7 @@
         </section>
 
         <section id="guide" role="tabpanel" aria-labelledby="tab-guide" hidden><div class="guide-intro"><p class="eyebrow accent">GUIDE PRATIQUE</p><h2>Vérifier une carte, avec méthode.</h2><p>Ces indices peuvent aider à repérer une anomalie, mais aucun test isolé ne prouve l'authenticité d'une carte.</p></div><div class="guide-grid"><article class="guide-card"><span>01</span><h3>Impression et détails</h3><p>Comparez la typographie, la netteté, les symboles et les couleurs avec un exemplaire vérifié du même tirage.</p></article><article class="guide-card"><span>02</span><h3>Texture et finition</h3><p>Certaines raretés présentent du relief. Il varie selon les éditions : l'absence de texture n'est pas une preuve de contrefaçon.</p></article><article class="guide-card"><span>03</span><h3>Tranche et lumière</h3><p>La construction varie selon les cartes. Les tests de lumière et de tranche ne sont pas suffisamment fiables pour conclure seuls.</p></article><article class="guide-card"><span>04</span><h3>En cas de doute</h3><p>Consultez un professionnel et évitez les tests destructifs : pliage, déchirure ou produits chimiques.</p></article></div></section>
-        <footer class="footer">Données : TCGdex · Images manquantes : Pokémon TCG API (source secondaire temporaire) · Prix indicatifs Cardmarket · Projet indépendant, non affilié à Pokémon.</footer>
+        <footer class="footer">Données : TCGdex · Pack natif facultatif · Images manquantes : Pokémon TCG API (source secondaire temporaire) · Prix indicatifs Cardmarket · Projet indépendant, non affilié à Pokémon.</footer>
       </main>
     </div>
   </div>

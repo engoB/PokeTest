@@ -1,4 +1,9 @@
-# PokéVault 3.1 — correctif de démarrage
+# PokéVault v4 — pack d’images natif optionnel
+
+Cette version conserve le correctif de démarrage v3.1 et ajoute le builder de visuels. Le ZIP livré contient le **code**, pas les illustrations protégées ; voir la section V4 en fin de fichier.
+
+## Base héritée de v3.1
+
 
 Cette archive contient **app.bundle.js**, un script autonome qui évite les imports JavaScript manquants ou mal servis. Le chargement affiche une erreur explicite plutôt que quatre cartes fantômes bloquées.
 
@@ -81,3 +86,34 @@ La recherche se poursuit en tâche de fond **tant que l'application reste ouvert
 La grille **réutilise les mêmes éléments DOM** pour les cartes communes entre deux fenêtres de défilement, au lieu de tout reconstruire à chaque mouvement. Elle conserve également jusqu'à 65 tuiles récemment sorties de l'écran et affiche toujours le verso local pendant le chargement initial, avec fondu d'entrée sur le visuel trouvé. Les images résolues restent dans IndexedDB et les fichiers visités dans le cache du service worker. Le comportement réel reste à tester sur les téléphones cibles, notamment en cas de manque de mémoire.
 
 **Compatibilité collection :** la clé `pv_collection`, les quantités et les exports JSON v1 sont inchangés. La nouvelle logique n'écrit que dans les caches d'images. Avant publication, exporter une sauvegarde JSON et conserver la même origine HTTPS pour retrouver automatiquement les données existantes.
+
+## V4 — Pack d'illustrations embarqué (préparation pour Work / natif)
+
+Cette version fonctionne sans pack (PWA habituelle) ou avec un pack `dist/assets/offline/` créé au moment du build. **L'archive du code ne contient pas les 22 000 images** : elles doivent être téléchargées depuis une machine disposant du réseau, après vérification des droits de redistribution. Ne pas pousser `dist/` ou les images sur un dépôt public sans autorisation.
+
+Dans la v4, le bouton **Index visuels** exporte les correspondances URL/carte déjà vérifiées sur **ce navigateur** (pas les images elles-mêmes, pas les quantités). Exporter séparément la collection JSON par précaution ; la v4 conserve toujours `pv_collection` et les anciens exports.
+
+Depuis Work ou un PC disposant de Node.js >=20 et d'une connexion Internet :
+
+```bash
+npm test
+npm run pack:offline -- --resolutions-json pokevault-index-visuels.json --languages de,it,es,pt --precache-limit 100
+# Produit dist/ (app statique + catalogue FR + visuels téléchargés + rapport détaillé).
+# Pour ne traiter que les cartes possédées : --only-owned ma-collection.json
+# Pour un essai rapide : --limit 100
+# Pour reprendre un build interrompu, relancer la même commande avec le même --output. Le builder limite ses requêtes à une toutes les 200 ms par défaut et ralentit après HTTP 429/5xx (`--request-gap-ms` permet d’ajuster ce délai selon les conditions du fournisseur).
+```
+
+Le builder tente successivement : URLs déjà vérifiées, TCGdex FR, TCGdex EN (même ID), puis les langues TCGdex demandées (même ID). Pour les cartes vraiment absentes, un fichier `--overrides-json overrides.json` permet d'ajouter des correspondances **revues manuellement** :
+
+```json
+{"swsh3-136":{"url":"https://images.pokemontcg.io/swsh3/136.png","reviewed":true}}
+```
+
+Une correspondance n'est acceptée que si l'image est téléchargée et possède une signature d'image valide. Les URLs arbitraires, les réponses HTML et les correspondances non revues sont refusées. Pour Scrydex, un outil externe autorisé peut produire ce fichier après appariement rigoureux nom anglais + numéro + extension + année. Si les images proviennent d’un autre CDN, ajouter explicitement son domaine avec `--allow-host cdn.exemple.org` après vérification des droits et des conditions du fournisseur ; aucune clé API ne doit être exposée. Ne jamais exposer une clé Scrydex dans l'app ou le dépôt. Le catalogue `pokemon-tcg-data` reste historique et ne remplace pas une source maintenue.
+
+`dist/assets/offline/report.json` contient `packed`, `missingIds` et les erreurs. **Un `missing` ne prouve pas que l'illustration n'existe pas** : cela signifie qu'aucun candidat autorisé n'a pu être téléchargé lors de ce build. Ajouter des overrides revus et relancer pour compléter le pack.
+
+Le dossier `dist/` est déployable tel quel sur un hébergement statique ou copiable comme `webDir` d'un projet Capacitor. Une application native contenant les fichiers embarqués n'a plus besoin de vérifier les images présentes dans le pack. Sur le Web, le navigateur impose des quotas : seules les images consultées et au plus `--precache-limit` images sélectionnées sont garanties hors ligne après installation de la PWA ; une PWA ne peut pas garantir 22 000 images hors ligne sur tous les appareils. Le service worker est versionné v4 pour éviter de conserver les fichiers v3.
+
+Les prix **ne sont pas figés dans le pack** : les cotes évoluent, et l'app conserve son système actuel de rafraîchissement et de cache. Les visuels non empaquetés conservent la recherche réseau et le verso local. Aucune modification ni purge de la clé `pv_collection`.

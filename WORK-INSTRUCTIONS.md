@@ -1,0 +1,12 @@
+# Pour Work — PokéVault v4, pack de visuels
+
+1. Décompresser ce ZIP. Créer une branche `feat/pokevault-v4-offline-pack` depuis `engoB/PokeTest/main`. Ne pas modifier directement main et ne jamais effacer `pv_collection`.
+2. `npm run check` : 33 tests doivent passer. Déployer le code v4 **sans** images embarquées d'abord, à la même origine que la version précédente, pour conserver la collection et les 20 550 vérifications déjà enregistrées dans le navigateur.
+3. Dans l'interface v4, utiliser le nouveau bouton **Index visuels** et fournir `pokevault-index-visuels.json` à Work. Ce JSON contient les correspondances déjà vérifiées, pas les images ni la collection.
+4. **Vérifier les droits et conditions des fournisseurs AVANT de télécharger en masse ou redistribuer les scans.** Pokémon n'accorde pas automatiquement les droits de réutilisation de ses illustrations ; ne pas publier le pack sur GitHub ni le soumettre à l'App Store sans autorisation appropriée.
+5. Si les droits sont obtenus pour l'usage visé, exécuter `npm run pack:offline -- --resolutions-json pokevault-index-visuels.json --languages de,it,es,pt --precache-limit 100` depuis un environnement réseau. Relancer la même commande en cas d'interruption : les images déjà validées dans `dist/` sont réutilisées.
+6. Examiner `dist/assets/offline/report.json` : les IDs `missingIds` doivent être rapprochés des catalogues autorisés (Scrydex ou autre) avec vérification exacte extension, numéro, nom anglais et année. Ajouter uniquement des overrides revus manuellement ; ne jamais choisir un visuel ambigu. `--allow-host` est disponible pour un domaine CDN externe autorisé.
+7. Tester l'app sur ordinateur et téléphone, réseau coupé, sur une petite extension et sur un grand catalogue. Pour une app iOS native, intégrer le dossier `dist/` comme `webDir` d'un conteneur Capacitor dans un projet iOS créé sur Mac avec Xcode ; le ZIP fourni n'est pas un IPA.
+8. Créer une PR de code vers main. Garder `dist/` et les illustrations hors du dépôt public tant que les droits de redistribution ne sont pas établis. Conserver les exports JSON de collection séparément.
+
+**Limites** : le pack ne contient que les images effectivement téléchargées et validées ; les cotes restent actualisées via l'API et le cache. Une PWA ne garantit pas la mise hors ligne de 22 000 scans sur tous les navigateurs (quota) ; une vraie application native peut embarquer les fichiers autorisés dans son bundle.

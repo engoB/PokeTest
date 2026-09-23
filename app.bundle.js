@@ -1,4 +1,4 @@
-/* PokéVault 3.1 self-contained browser bundle. Generated with node scripts/build.mjs. */
+/* PokéVault 4.0 self-contained browser bundle. Generated with node scripts/build.mjs. */
 (()=>{
 'use strict';
 // Pure, dependency-free helpers. IDs and prices are always tied to one printing.
@@ -193,6 +193,8 @@ function reconcileIds(existingIds, wantedIds) {
 const API='https://api.tcgdex.net/v2';
 // Transitional, unauthenticated fallback only. The legacy provider retires March 2027.
 const ALTERNATE_API='https://api.pokemontcg.io/v2/cards';
+const OFFLINE_ROOT='./assets/offline/';
+const offlinePack={images:Object.create(null),catalog:null,sets:null};
 const $=id=>document.getElementById(id);
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state={
@@ -225,6 +227,8 @@ function showToast(message){const el=$('toast');el.textContent=message;el.hidden
 function enqueue(task,priority=false){return new Promise((resolve,reject)=>{const job={task,resolve,reject};if(priority)state.queue.unshift(job);else state.queue.push(job);pumpQueue();});}
 function pumpQueue(){while(state.running<3&&state.queue.length){const job=state.queue.shift();state.running++;Promise.resolve().then(job.task).then(job.resolve,job.reject).finally(()=>{state.running--;pumpQueue();});}}
 async function getJSON(path){
+  if(path==='fr/cards'&&offlinePack.catalog)return offlinePack.catalog;
+  if(path==='fr/sets'&&offlinePack.sets)return offlinePack.sets;
   // An API request must never leave the entire interface on an infinite skeleton.
   // The full FR catalog can be large; individual card requests have a shorter limit.
   const controller=new AbortController();
@@ -238,6 +242,24 @@ async function getJSON(path){
     throw error;
   }finally{clearTimeout(timeout);}
 }
+async function loadOfflinePack(){
+  // Optional native/static pack. Missing manifest means ordinary online PWA.
+  let manifest;
+  try{const response=await fetch(`${OFFLINE_ROOT}images.json`,{cache:'no-store'});if(!response.ok)return;manifest=await response.json();}
+  catch{return;}
+  if(manifest?.version!==1||!manifest.images||typeof manifest.images!=='object')return;
+  for(const [id,entry] of Object.entries(manifest.images)){
+    if(!/^[A-Za-z0-9_.-]{1,110}$/.test(id)||['__proto__','prototype','constructor'].includes(id)||!entry?.file||entry.file!==`./assets/offline/cards/${id}.${entry.file.split('.').pop()}`||!/\.(webp|png|jpg)$/.test(entry.file))continue;
+    offlinePack.images[id]=entry;
+    state.imageRecords.set(id,{source:'bundled',url:entry.file,checkedAt:Date.now(),verificationVersion:4});
+  }
+  const [catalog,sets]=await Promise.allSettled([
+    fetch(`${OFFLINE_ROOT}catalog-fr.json`).then(r=>r.ok?r.json():null),
+    fetch(`${OFFLINE_ROOT}sets-fr.json`).then(r=>r.ok?r.json():null)
+  ]);
+  if(catalog.status==='fulfilled'&&Array.isArray(catalog.value))offlinePack.catalog=catalog.value;
+  if(sets.status==='fulfilled'&&Array.isArray(sets.value))offlinePack.sets=sets.value;
+}
 function isFresh(id){const time=state.prices[id]?.fetchedAt;return Boolean(time&&Date.now()-time<PRICE_TTL);}
 function trend(id){const value=state.prices[id]?.trend;return Number.isFinite(value)?value:null;}
 function networkStatus(){const offline=!navigator.onLine;$('network-indicator').hidden=!offline;if(offline)$('network-indicator').textContent='Hors connexion · cache local';}
@@ -246,9 +268,9 @@ async function hydrateCache(){
   state.db=await openCache();
   const [prices,images]=await Promise.all([loadCache(state.db,'prices'),loadCache(state.db,'images')]);
   for(const {id,...entry} of prices){if((entry.fetchedAt||0)>(state.prices[id]?.fetchedAt||0))state.prices[id]=entry;}
-  for(const {id,...entry} of images)if((entry.checkedAt||0)>(state.imageRecords.get(id)?.checkedAt||0))state.imageRecords.set(id,entry);
+  for(const {id,...entry} of images)if(!offlinePack.images[id]&&(entry.checkedAt||0)>(state.imageRecords.get(id)?.checkedAt||0))state.imageRecords.set(id,entry);
   // Browsers in private mode can deny IndexedDB. Preserve a small localStorage fallback.
-  if(!state.db)for(const [id,entry] of Object.entries(storage('pv_image_resolutions_v1',{})))state.imageRecords.set(id,entry);
+  if(!state.db)for(const [id,entry] of Object.entries(storage('pv_image_resolutions_v1',{})))if(!offlinePack.images[id])state.imageRecords.set(id,entry);
   updateSummary();
   if(state.cards.length){refreshResults();startAutomaticImageScan();}
 }
@@ -718,6 +740,7 @@ function addExtra(id,entry){
   state.imageExtras.set(id,extras);
 }
 function candidateUrls(entry,quality){
+  if(entry?.source==='bundled'&&/^\.\/assets\/offline\/cards\/[A-Za-z0-9_.-]+\.(webp|png|jpg)$/.test(entry.url))return [{url:entry.url,entry}];
   const verified=trustedImageUrl(entry.url);
   if(entry.base){
     const normal=imageUrls(entry.base,quality);
@@ -913,6 +936,7 @@ function updateImageSource(id){
   $('dialog-image-source').textContent=status==='checking'?'Illustration : recherche en cours…'
     :status==='error'?'Illustration : recherche incomplète, réessayer'
     :status==='pending'?'Illustration : pas encore vérifiée'
+    :source==='bundled'?'Illustration : intégrée à l’application'
     :source==='pokemon-tcg-api'?'Illustration : Pokémon TCG API (source secondaire)'
     :source==='tcgdex-en'?'Illustration : TCGdex EN':source==='missing'?'Illustration introuvable · verso provisoire':'Illustration : TCGdex';
 }
@@ -978,6 +1002,16 @@ async function importCollection(file){
   }catch(error){showToast(error.message||'Impossible de lire cette sauvegarde.');}
   finally{$('import-file').value='';}
 }
+function exportImageIndex(){
+  const images={};
+  for(const [id,record] of state.imageRecords){
+    if(record?.source&&record.source!=='missing'&&record.url&&record.source!=='bundled')images[id]={url:record.url,source:record.source,checkedAt:record.checkedAt};
+  }
+  const data={format:'pokevault-image-index-v1',exportedAt:new Date().toISOString(),images};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob);
+  const link=document.createElement('a');link.href=url;link.download='pokevault-index-visuels.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
+  showToast(`${Object.keys(images).length} visuels vérifiés exportés (index, pas les images).`);
+}
 function installPWA(){if(state.installEvent){state.installEvent.prompt();state.installEvent.userChoice.finally(()=>{state.installEvent=null;$('install-btn').hidden=true;});}else showToast('Sur iPhone/iPad : Partager → Sur l’écran d’accueil.');}
 function registerSW(){if('serviceWorker'in navigator&&(location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname)))navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 
@@ -1008,7 +1042,7 @@ function bindEvents(){
     if(event.key==='Escape'){if(!$('card-dialog').hidden)closeDialog();closeSidebar();}
     if(event.key==='Tab'&&!$('card-dialog').hidden){const buttons=[...$('card-dialog').querySelectorAll('button:not([disabled])')];const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
   });
-  $('export-btn').addEventListener('click',exportCollection);$('import-btn').addEventListener('click',()=>$('import-file').click());$('import-file').addEventListener('change',event=>importCollection(event.target.files[0]));
+  $('export-btn').addEventListener('click',exportCollection);$('export-images').addEventListener('click',exportImageIndex);$('import-btn').addEventListener('click',()=>$('import-file').click());$('import-file').addEventListener('change',event=>importCollection(event.target.files[0]));
   $('install-btn').addEventListener('click',installPWA);
   $('jump-top').addEventListener('click',jumpTop);$('jump-bottom').addEventListener('click',jumpBottom);
   window.addEventListener('scroll',onScroll,{passive:true});
@@ -1019,7 +1053,7 @@ function bindEvents(){
 }
 bindEvents();networkStatus();updateSummary();registerSW();
 window.__pvBooted=true;
-Promise.allSettled([hydrateCache(),loadCatalog()]).then(results=>{
+loadOfflinePack().then(()=>Promise.allSettled([hydrateCache(),loadCatalog()])).then(results=>{
   if(results.some(result=>result.status==='rejected')){
     const errors=results.filter(result=>result.status==='rejected').map(result=>result.reason?.message||'Erreur inconnue');
     console.error('PokéVault initialisation',...errors);

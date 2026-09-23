@@ -1,8 +1,8 @@
 {
   "name": "pokevault-pwa",
   "private": true,
-  "version": "3.1.0",
+  "version": "4.0.0",
   "type": "module",
-  "scripts": {"dev":"python3 -m http.server 4173", "test":"node --test", "check":"node scripts/build.mjs --check && node --check app.bundle.js && node --check app.js && node --check core.mjs && node --check db.mjs && node --check virtual-grid.mjs && node --check image-state.mjs && node --check sw.js && node --test"},
+  "scripts": {"dev":"python3 -m http.server 4173", "pack:offline":"node scripts/build-offline.mjs", "test":"node --test", "check":"node scripts/build.mjs --check && node --check app.bundle.js && node --check app.js && node --check core.mjs && node --check db.mjs && node --check virtual-grid.mjs && node --check image-state.mjs && node --check sw.js && node --check scripts/build-offline.mjs && node --check scripts/offline-core.mjs && node --test"},
   "engines": {"node": ">=20"}
 }

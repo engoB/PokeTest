@@ -1,6 +1,29 @@
-Mission : installer maintenant la moisson automatique des visuels PokéVault.
+PokéVault v4.5 — CORRECTIF DE LA MOISSON FR (facultatif si l'utilisateur publie lui-même)
 
-Ouvre l'archive PokeVault-v4.4-MOISSON-GITHUB.zip. Lis WORK-MOISSON-VISUELS.md.
-Dans le dépôt GitHub existant engoB/PokeTest, crée une branche avec tous les fichiers du dossier PokeTest-Premium/ et ouvre une PR vers main. Le fichier indispensable est .github/workflows/harvest-images.yml ; l'index inputs/pokevault-index-visuels.json contient 20 559 URL déjà résolues. Lance npm run check et n'efface aucune donnée de collection.
-Après fusion de la PR sur main, déclenche UNE fois Actions > PokéVault - moisson d'illustrations > Run workflow > resolve. Les recherches continueront automatiquement quatre fois par jour, même quand la PWA est fermée. Donne-moi le lien du run et le rapport report.json/report.md ; distingue pending, retry, needs-provider-access et unavailable-in-checked-sources. Si GitHub bloque les écritures, indique précisément la permission à corriger au lieu de prétendre que le déploiement a réussi.
-La seconde phase `pack` télécharge et valide les vrais fichiers dans 16 artefacts et assemble un manifeste GitHub, mais ne la lance qu'après confirmation des droits d'utilisation et des conditions des fournisseurs. Ne publie pas les scans dans un dépôt Git public.
+Dépôt existant : https://github.com/engoB/PokeTest
+
+Le ZIP contient le projet complet à déposer À LA RACINE du dépôt, en conservant
+le chemin exact .github/workflows/harvest-images.yml.
+
+Correctifs :
+- Cibler exclusivement les identifiants du catalogue FR TCGdex (22 170 dans
+  le snapshot fourni), sans ajouter les 1 659 cartes uniquement anglaises.
+- Garder les 11 langues TCGdex comme sources d'images des mêmes IDs FR.
+- Inclure les deux IDs spéciaux Zarbi : exu-! et exu-%3F.
+- Reprogrammer les 235 anciens états v4.4 confondant quota secondaire épuisé
+  et absence de clé ; à l'avenir un quota épuisé reste retry avec délai.
+- Le pack GitHub assemble désormais uniquement le catalogue FR.
+
+Le checkpoint déjà créé (artefact pokevault-image-state ou branche
+pokevault-image-data) est repris automatiquement. Ne pas le supprimer. Ne pas
+réinitialiser la collection pv_collection, IndexedDB ou les cotes.
+
+Avant publication : npm run check (51 tests locaux réussis lors de la livraison).
+Après publication : Actions > PokéVault - moisson d'illustrations > Run workflow
+> resolve (max_cards=400). Le rapport doit afficher scope=fr-exact-ids et le
+nombre courant d'IDs FR ; les prochaines recherches restent programmées 4 fois
+par jour. Ne lancer pack qu'après vérification des droits des scans.
+
+Si le connecteur GitHub refuse l'écriture (403), ne pas annoncer un push ou une
+PR. L'utilisateur peut déposer le ZIP lui-même via GitHub ou utiliser un accès
+Git authentifié autorisé. Voir WORK-MOISSON-VISUELS.md.

@@ -5,7 +5,8 @@ import {tmpdir} from 'node:os';
 import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
-import {validIndex,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage} from '../scripts/harvest-core.mjs';
+import {validIndex,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage,migrateAmbiguousProviderStates} from '../scripts/harvest-core.mjs';
+import {frenchTargetCatalogue} from '../scripts/catalog-core.mjs';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 test('image URL/index validation prevents unsafe host or traversal',()=>{
   assert.equal(trustedHarvestURL('http://assets.tcgdex.net/fr/a.png'),null);
@@ -37,6 +38,30 @@ test('unknown/network/quota never become certified missing; only checked sources
   assert.equal(classifyResult({attempted:12,moreProviders:true}),'retry');
   assert.equal(classifyResult({attempted:10}),'unavailable-in-checked-sources');
 });
+test('FR target keeps the two exact Zarbi IDs and uses EN only for matching FR images',()=>{
+  const fr=[{id:'exu-!',name:'Zarbi !'},{id:'exu-%3F',name:'Zarbi ?',localId:'%3F'},{id:'base1-1',name:'Nom FR'}];
+  const en=[{id:'exu-!',name:'Unown !',image:'https://assets.tcgdex.net/en/ex/exu/!/low.webp'},
+    {id:'base1-1',name:'Name EN',image:'https://assets.tcgdex.net/en/base/base1/001'},
+    {id:'future1-1',name:'EN-only'}];
+  const selected=frenchTargetCatalogue(fr,en);
+  assert.equal(selected.length,3);
+  assert.deepEqual(selected.map(c=>c.id),['base1-1','exu-!','exu-%3F']);
+  assert.equal(selected.find(c=>c.id==='base1-1').name,'Nom FR');
+  assert.equal(selected.find(c=>c.id==='base1-1').image,en[1].image);
+  assert.equal(selected.find(c=>c.id==='exu-!').image,en[0].image);
+  assert.ok(trustedHarvestURL('https://assets.tcgdex.net/en/ex/exu/!/low.webp'));
+  assert.ok(trustedHarvestURL('https://assets.tcgdex.net/en/ex/exu/%3F/low.webp'));
+  assert.equal(trustedHarvestURL('https://assets.tcgdex.net/en/ex/exu/%2F..%2F/low.webp'),null);
+});
+test('old ambiguous quota/provider checkpoints are requeued exactly once',()=>{
+  const rows={'base1-1':{status:'needs-provider-access',reason:'additional-provider-not-configured-or-budget',nextRetryAt:null},
+    'base1-2':{status:'needs-provider-access',reason:'scrydex-credentials-missing'},
+    'base1-3':{status:'retry',reason:'remote-temporary-error'}};
+  assert.equal(migrateAmbiguousProviderStates(rows),1);
+  assert.equal(rows['base1-1'].status,'retry');assert.equal(rows['base1-1'].nextRetryAt,0);
+  assert.equal(rows['base1-2'].status,'needs-provider-access');
+  assert.equal(migrateAmbiguousProviderStates(rows),0);
+});
 test('resumable pack uses actual verified image bytes, assembly rejects missing shard',()=>{
   const tmp=mkdtempSync(join(tmpdir(),'pv-harvest-'));
   try{
@@ -58,6 +83,43 @@ test('resumable pack uses actual verified image bytes, assembly rejects missing 
     const manifest=JSON.parse(readFileSync(join(output,'assets/offline/images.json')));
     assert.equal(manifest.images['base1-1'].file,'./assets/offline/cards/base1-1.png');
     assert.equal(JSON.parse(readFileSync(join(output,'assets/offline/images-assembly-report.json'))).complete,true);
+  }finally{rmSync(tmp,{recursive:true,force:true});}
+});
+test('special Zarbi IDs survive local pack, shard collection and assembly without URL decoding errors',()=>{
+  const tmp=mkdtempSync(join(tmpdir(),'pv-zarbi-'));
+  try{
+    const fixtures=join(tmp,'fixtures'),cache=join(tmp,'cache'),out=join(tmp,'shard');
+    mkdirSync(fixtures,{recursive:true});mkdirSync(join(cache,'cards'),{recursive:true});
+    const fr=[{id:'exu-!',localId:'!',name:'Zarbi !'},{id:'exu-%3F',localId:'%3F',name:'Zarbi ?'}];
+    const en=[...fr.map(c=>({...c,name:'Unown'})),{id:'future-1',name:'English only'}];
+    const locales=['fr','en','de','es','it','pt','pt-br','ja','zh-tw','id','th'];
+    for(const lang of locales)writeFileSync(join(fixtures,`${lang}.json`),JSON.stringify(lang==='fr'?fr:lang==='en'?en:[]));
+    writeFileSync(join(fixtures,'sets.json'),JSON.stringify([{id:'exu',name:'Unseen'}]));
+    writeFileSync(join(fixtures,'index.json'),JSON.stringify({images:{
+      'exu-!':{url:'https://assets.tcgdex.net/fr/ex/exu/!/low.webp'},
+      'exu-%3F':{url:'https://assets.tcgdex.net/fr/ex/exu/%3F/low.webp'},
+      'future-1':{url:'https://assets.tcgdex.net/en/x/future/001/low.webp'}
+    }}));
+    for(const card of fr)copyFileSync(join(root,'assets/icon-192.png'),join(cache,'cards',`${card.id}.png`));
+    const args=['scripts/harvest-images.mjs','--mode','pack','--index',join(fixtures,'index.json'),'--state',join(cache,'state.json'),'--cache-dir',cache,'--output',out,'--shard','0/1','--en-sets',join(fixtures,'sets.json'),'--no-network'];
+    for(const lang of locales)args.push(`--${lang}-cards`,join(fixtures,`${lang}.json`));
+    execFileSync(process.execPath,args,{cwd:root,timeout:20000});
+    const report=JSON.parse(readFileSync(join(out,'report.json')));
+    assert.equal(report.totalCatalog,2);assert.equal(report.packed,2);
+    const part=JSON.parse(readFileSync(join(out,'images-part-0-of-1.json')));
+    assert.equal(part.images['exu-%3F'].file,'./assets/offline/cards/exu-%253F.png');
+    assert.equal(Object.hasOwn(part.images,'future-1'),false);
+    const artifacts=join(tmp,'artifacts','pokevault-image-shard-0');
+    mkdirSync(join(artifacts,'parts'),{recursive:true});
+    mkdirSync(join(artifacts,'assets/offline/cards'),{recursive:true});
+    copyFileSync(join(out,'images-part-0-of-1.json'),join(artifacts,'parts','images-part-0-of-1.json'));
+    for(const card of fr)copyFileSync(join(out,'assets/offline/cards',`${card.id}.png`),join(artifacts,'assets/offline/cards',`${card.id}.png`));
+    const dist=join(tmp,'dist');mkdirSync(join(dist,'assets/offline'),{recursive:true});
+    writeFileSync(join(dist,'assets/offline/catalog-fr.json'),JSON.stringify(fr));
+    execFileSync(process.execPath,['scripts/collect-image-shards.mjs','--artifacts',join(tmp,'artifacts'),'--dist',dist,'--shards','1'],{cwd:root,timeout:20000});
+    execFileSync(process.execPath,['scripts/assemble-image-pack.mjs','--dir',dist,'--shards','1'],{cwd:root,timeout:20000});
+    assert.equal(JSON.parse(readFileSync(join(dist,'assets/offline/images-assembly-report.json'))).complete,true);
+    assert.equal(JSON.parse(readFileSync(join(dist,'assets/offline/images.json'))).images['exu-%3F'].file,'./assets/offline/cards/exu-%253F.png');
   }finally{rmSync(tmp,{recursive:true,force:true});}
 });
 test('offline missing card is retryable and run can resume without hammering providers',()=>{
@@ -101,10 +163,11 @@ test('mocked real-network flow recovers omitted subset scans, reports inaccessib
     const state=JSON.parse(readFileSync(join(cache,'state.json')));
     assert.equal(state.cards['base1-1'].status,'found');
     assert.equal(state.cards['base1-1'].source,'tcgdex-en-exact-set-path');
-    assert.equal(state.cards['base1-2'].status,'needs-provider-access');
+    assert.equal(state.cards['base1-2'].status,'retry');
+    assert.equal(state.cards['base1-2'].reason,'legacy-quota-exhausted');
     assert.ok(state.cards['base1-2'].sourcesTried.some(s=>s.includes('exact-set-path')));
     const report=JSON.parse(readFileSync(join(output,'report.json')));
-    assert.equal(report.found,1);assert.equal(report.statusCounts['needs-provider-access'],1);
+    assert.equal(report.found,1);assert.equal(report.statusCounts.retry,1);
     assert.equal(report.stillUnindexed,1);
     // A separate pack run starts from a previously exported URL which returns 429
     // with Retry-After: 3600. It must immediately try a different provider.

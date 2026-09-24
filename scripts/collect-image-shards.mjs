@@ -5,6 +5,7 @@ import {readFile,writeFile,mkdir,readdir,copyFile} from 'node:fs/promises';
 import {resolve,join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {cardShard} from './harvest-core.mjs';
+import {safeId} from './offline-core.mjs';
 const args=process.argv.slice(2),opt=k=>{const i=args.indexOf(k);return i>=0?args[i+1]:null;};
 const source=resolve(opt('--artifacts')||'artifacts'),destination=resolve(opt('--dist')||'dist');
 const shards=Number(opt('--shards')||16);
@@ -18,9 +19,10 @@ for(let n=0;n<shards;n++){
   if(part.format!=='pokevault-image-part-v1'||part.shard!==n||part.shards!==shards)throw Error('Wrong shard '+n);
   await copyFile(join(from,'parts',name),join(targetParts,name));
   for(const [id,entry] of Object.entries(part.images)){
-    const name=entry.file.split('/').at(-1);
+    const ext=/\.(webp|png|jpg)$/.exec(entry?.file||'')?.[1];
+    const name=`${id}.${ext}`;
     if(cardShard(id,shards)!==n)throw Error('Wrong shard for '+id);
-    if(name!==`${id}.${entry.file.split('.').at(-1)}`||!/^[-A-Za-z0-9_.]+\.(webp|png|jpg)$/.test(name))throw Error('Unsafe asset name');
+    if(!safeId(id)||!ext||entry.file!==`./assets/offline/cards/${encodeURIComponent(id)}.${ext}`)throw Error('Unsafe asset name');
     await copyFile(join(from,'assets/offline/cards',name),join(targetCards,name));
   }
   console.log(`Part ${n+1}/${shards}: ${Object.keys(part.images).length} images copied`);

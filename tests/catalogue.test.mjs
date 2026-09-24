@@ -4,7 +4,7 @@ import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync}
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync, spawnSync} from 'node:child_process';
-import {mergeCatalogue, mergeSets, setForCard, detailShard, DETAIL_SHARDS, trustedIndex} from '../scripts/catalog-core.mjs';
+import {mergeCatalogue, frenchTargetCatalogue, mergeSets, setForCard, detailShard, DETAIL_SHARDS, trustedIndex} from '../scripts/catalog-core.mjs';
 
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 test('complete inventory keeps unique FR entries and EN-only printings, including compound set IDs',()=>{
@@ -20,6 +20,28 @@ test('complete inventory keeps unique FR entries and EN-only printings, includin
   assert.equal(setForCard('2019sm-fr-2',sets),'2019sm-fr');
   assert.equal(setForCard('future1-1',sets),'future1');
   assert.ok(detailShard('future1-1')>=0&&detailShard('future1-1')<DETAIL_SHARDS);
+});
+test('FR-only offline builder excludes EN-only cards while retaining special Zarbi IDs',()=>{
+  const tmp=mkdtempSync(join(root,'dist-fr-fixture-'));
+  try{
+    const files={
+      'fr-cards.json':[{id:'exu-!',name:'Zarbi !'},{id:'exu-%3F',name:'Zarbi ?'}],
+      'en-cards.json':[{id:'exu-!',name:'Unown !',image:'https://assets.tcgdex.net/en/ex/exu/!'},
+        {id:'future-1',name:'EN only'}],
+      'fr-sets.json':[{id:'exu',name:'Unseen'}],
+      'en-sets.json':[{id:'exu',name:'Unseen'},{id:'future',name:'Future'}],
+      'index.json':{images:{'exu-!':{url:'https://assets.tcgdex.net/en/ex/exu/!/low.webp',checkedAt:1790000000000}}}
+    };
+    for(const [name,data] of Object.entries(files))writeFileSync(join(tmp,name),JSON.stringify(data));
+    const args=['scripts/build-full-catalog.mjs','--inventory-only','--fr-only','--fr-cards',join(tmp,'fr-cards.json'),'--en-cards',join(tmp,'en-cards.json'),'--fr-sets',join(tmp,'fr-sets.json'),'--en-sets',join(tmp,'en-sets.json'),'--index',join(tmp,'index.json'),'--output',join(tmp,'dist')];
+    execFileSync(process.execPath,args,{cwd:root,timeout:20000});
+    const catalog=JSON.parse(readFileSync(join(tmp,'dist/assets/offline/catalog-fr.json')));
+    const report=JSON.parse(readFileSync(join(tmp,'dist/assets/offline/catalogue-report.json')));
+    assert.deepEqual(catalog.map(c=>c.id),['exu-!','exu-%3F']);
+    assert.equal(catalog[0].image,files['en-cards.json'][0].image);
+    assert.equal(report.scope,'fr-exact-ids');assert.equal(report.uniqueCardIds,2);
+    assert.equal(report.englishOnlyCards,0);assert.equal(report.uniqueSets,1);
+  }finally{rmSync(tmp,{recursive:true,force:true});}
 });
 
 test('index contains only trusted known HTTPS hosts and exact card IDs',()=>{

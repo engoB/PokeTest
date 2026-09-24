@@ -4,13 +4,13 @@
 import {readFile,writeFile,mkdir,cp,copyFile,readdir} from 'node:fs/promises';
 import {join,resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {mergeCatalogue,mergeSets,setForCard,detailShard,DETAIL_SHARDS,trustedIndex} from './catalog-core.mjs';
+import {mergeCatalogue,frenchTargetCatalogue,mergeSets,setForCard,detailShard,DETAIL_SHARDS,trustedIndex} from './catalog-core.mjs';
 import {safeId} from './offline-core.mjs';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 const args=process.argv.slice(2),has=flag=>args.includes(flag);
 const opt=flag=>{const n=args.indexOf(flag);return n>=0?args[n+1]:null;};
 if(has('--help')){
-  console.log(`node scripts/build-full-catalog.mjs --index pokevault-index-visuels.json [--inventory-only] [--fr-cards FILE --en-cards FILE --fr-sets FILE --en-sets FILE] [--fixture-details-dir DIR --fixture-set-details-dir DIR] [--cache-dir DIR] [--output dist] [--limit-details N] [--refresh]\nDefault: fetch ALL FR and EN cards/sets and detailed records (resume-safe; 20k+ requests may take hours). --inventory-only creates the complete card inventory without full card metadata. Networked Node >=20 required except for fixtures. Does not download card illustrations; artwork redistribution needs a separate rights review.`);
+  console.log(`node scripts/build-full-catalog.mjs --index pokevault-index-visuels.json [--inventory-only] [--fr-only] [--fr-cards FILE --en-cards FILE --fr-sets FILE --en-sets FILE] [--fixture-details-dir DIR --fixture-set-details-dir DIR] [--cache-dir DIR] [--output dist] [--limit-details N] [--refresh]\nDefault: fetch ALL FR and EN cards/sets. --fr-only keeps only FR card IDs, with EN as an exact-ID fallback. --inventory-only skips full card metadata. Networked Node >=20 required except for fixtures. Does not download card illustrations; artwork redistribution needs a separate rights review.`);
   process.exit(0);
 }
 const output=resolve(opt('--output')||join(root,'dist'));
@@ -20,6 +20,7 @@ const frCardsPath=opt('--fr-cards'),enCardsPath=opt('--en-cards'),frSetsPath=opt
 const fixtureDetails=opt('--fixture-details-dir'),fixtureSetDetails=opt('--fixture-set-details-dir');
 const indexPath=opt('--index');
 const inventoryOnly=has('--inventory-only');
+const frOnly=has('--fr-only');
 const maxDetails=opt('--limit-details')===null?Infinity:Number(opt('--limit-details'));
 if(!Number.isInteger(maxDetails)&&maxDetails!==Infinity||maxDetails<0)throw Error('Invalid --limit-details');
 const readJSON=async file=>JSON.parse(await readFile(file,'utf8'));
@@ -65,11 +66,15 @@ const [frCards,enCards,frSets,enSets]=await Promise.all([
   snapshot('fr-sets',frSetsPath,'https://api.tcgdex.net/v2/fr/sets'),
   snapshot('en-sets',enSetsPath,'https://api.tcgdex.net/v2/en/sets')
 ]);
-const catalog=mergeCatalogue(frCards,enCards),sets=mergeSets(frSets,enSets);
+const catalog=frOnly?frenchTargetCatalogue(frCards,enCards):mergeCatalogue(frCards,enCards);
+const allSets=mergeSets(frSets,enSets);
+const wantedSetIds=frOnly?new Set([...frSets.map(s=>s.id),...catalog.map(c=>setForCard(c.id,allSets)).filter(Boolean)]):null;
+const sets=frOnly?allSets.filter(s=>wantedSetIds.has(s.id)):allSets;
 if(!catalog.length||!sets.length)throw Error('No cards or sets: aborting.');
 const cardIds=new Set(catalog.map(c=>c.id)),setIds=new Set(sets.map(s=>s.id));
 const orphanCards=catalog.filter(c=>!setForCard(c.id,sets)).map(c=>c.id);
-const index=indexPath?trustedIndex(await readJSON(resolve(indexPath))):{};
+const rawIndex=indexPath?trustedIndex(await readJSON(resolve(indexPath))):{};
+const index=frOnly?Object.fromEntries(Object.entries(rawIndex).filter(([id])=>cardIds.has(id))):rawIndex;
 const indexIds=Object.keys(index).filter(id=>cardIds.has(id));
 const withoutIndexedVisual=catalog.filter(c=>!index[c.id]).map(c=>c.id);
 const setDetailMap=Object.create(null),details=Object.create(null),setErrors=[],cardErrors=[];
@@ -135,8 +140,8 @@ for(let n=0;n<DETAIL_SHARDS;n++){
   await writeFile(join(offline,filename),JSON.stringify(chunks[n]));shardFiles.push(`./assets/offline/${filename}`);
 }
 const fullDetails=!inventoryOnly&&cardDownloaded===catalog.length&&setErrors.length===0&&cardErrors.length===0;
-const manifest={format:'pokevault-catalogue-manifest-v1',source:'TCGdex FR + EN exact ID fallback',generatedAt:new Date().toISOString(),catalogueCount:catalog.length,setCount:sets.length,detailCount:cardDownloaded,detailsComplete:fullDetails,detailShards:DETAIL_SHARDS,files:shardFiles};
-const report={format:'pokevault-catalogue-report-v1',generatedAt:manifest.generatedAt,inventoryComplete:true,detailsComplete:fullDetails,frCardRows:frCards.length,enCardRows:enCards.length,uniqueCardIds:catalog.length,frSetRows:frSets.length,enSetRows:enSets.length,uniqueSets:sets.length,englishOnlyCards:catalog.filter(c=>c.language==='en').length,englishOnlySets:sets.filter(s=>s.language==='en').length,orphanCards,cardDetailsAvailable:cardDownloaded,cardDetailsUnretrieved:catalog.length-cardDownloaded,setDetailsErrors:setErrors,cardDetailsErrors:cardErrors,verifiedImageUrlsInIndex:indexIds.length,notInIndex:withoutIndexedVisual.length,notInIndexIds:withoutIndexedVisual,orphanIndexIds:Object.keys(index).filter(id=>!cardIds.has(id)),localImageFiles:0,offlineCatalogue:fullDetails?'full-in-native-package':'inventory-and-set-lists-only',offlineIllustrations:false,note:'Previously verified image URLs are not embedded image files. Unknown URLs are not proven missing scans. Prices still require their own source.'};
+const manifest={format:'pokevault-catalogue-manifest-v1',source:frOnly?'TCGdex FR exact IDs; EN exact-ID fallback':'TCGdex FR + EN exact ID fallback',generatedAt:new Date().toISOString(),catalogueCount:catalog.length,setCount:sets.length,detailCount:cardDownloaded,detailsComplete:fullDetails,detailShards:DETAIL_SHARDS,files:shardFiles};
+const report={format:'pokevault-catalogue-report-v1',scope:frOnly?'fr-exact-ids':'fr-en-union',generatedAt:manifest.generatedAt,inventoryComplete:true,detailsComplete:fullDetails,frCardRows:frCards.length,enCardRows:enCards.length,uniqueCardIds:catalog.length,frSetRows:frSets.length,enSetRows:enSets.length,uniqueSets:sets.length,englishOnlyCards:catalog.filter(c=>c.language==='en').length,englishOnlySets:sets.filter(s=>s.language==='en').length,orphanCards,cardDetailsAvailable:cardDownloaded,cardDetailsUnretrieved:catalog.length-cardDownloaded,setDetailsErrors:setErrors,cardDetailsErrors:cardErrors,verifiedImageUrlsInIndex:indexIds.length,notInIndex:withoutIndexedVisual.length,notInIndexIds:withoutIndexedVisual,orphanIndexIds:Object.keys(rawIndex).filter(id=>!cardIds.has(id)),localImageFiles:0,offlineCatalogue:fullDetails?'full-in-native-package':'inventory-and-set-lists-only',offlineIllustrations:false,note:'Previously verified image URLs are not embedded image files. Unknown URLs are not proven missing scans. Prices still require their own source.'};
 await writeFile(join(offline,'catalog-fr.json'),JSON.stringify(catalog));
 await writeFile(join(offline,'sets-fr.json'),JSON.stringify(sets));
 await writeFile(join(offline,'sets-detailed.json'),JSON.stringify(setDetails));

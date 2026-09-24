@@ -5,7 +5,7 @@ export const LANGUAGES=['fr','en','de','es','it','pt','pt-br','ja','zh-tw','id',
 export const IMAGE_HOSTS=new Set(['assets.tcgdex.net','images.pokemontcg.io','images.scrydex.com']);
 export function trustedHarvestURL(raw){
   try{if(typeof raw!=='string'||/(?:^|\/)(?:\.\.|(?:%2e){2})(?=\/|$)/i.test(raw))return null;const u=new URL(raw);if(u.protocol!=='https:'||u.username||u.password||!IMAGE_HOSTS.has(u.hostname)||u.port)return null;
-    if(!/^\/[\w./%-]+$/.test(u.pathname)||u.pathname.includes('..'))return null;
+    if(!/^\/[\w./%!-]+$/.test(u.pathname)||u.pathname.includes('..'))return null;
     return u.href;
   }catch{return null;}
 }
@@ -27,7 +27,7 @@ export function sourceCandidates(card,langCards={},indexed=null,verifiedSet=null
   for(const lang of LANGUAGES){
     const cardInLang=langCards[lang]?.get(card.id);
     const base=cardInLang?.image;
-    if(typeof base!=='string'||!/^https:\/\/assets\.tcgdex\.net\/[\w./-]+$/.test(base))continue;
+    if(typeof base!=='string'||!/^https:\/\/assets\.tcgdex\.net\/[\w./%!-]+$/.test(base))continue;
     for(const suffix of ['/low.webp','/low.png','/low.jpg','/high.webp'])add(base.replace(/\/$/,'')+suffix,`tcgdex-${lang}`);
   }
   // Some TCGdex subset cards have no `image` in the API despite their exact
@@ -55,6 +55,18 @@ export function classifyResult({loaded=false,attempted=0,networkError=false,more
   if(loaded)return 'found';
   if(networkError||moreProviders||attempted===0)return 'retry';
   return 'unavailable-in-checked-sources';
+}
+// v4.4 combined "legacy API quota reached" with "Scrydex key missing".
+// Those old records were permanently skipped without Scrydex credentials.
+// Requeue them once; the new resolver assigns a precise reason afterwards.
+export function migrateAmbiguousProviderStates(cards){
+  let changed=0;
+  for(const row of Object.values(cards||{})){
+    if(row?.status==='needs-provider-access'&&row.reason==='additional-provider-not-configured-or-budget'){
+      row.status='retry';row.reason='recheck-legacy-quota-or-provider';row.nextRetryAt=0;changed++;
+    }
+  }
+  return changed;
 }
 export function verifiedImage(bytes){
   if(!Buffer.isBuffer(bytes)||bytes.length>8_000_000)return null;

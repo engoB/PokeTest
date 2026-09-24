@@ -19,10 +19,13 @@ for(let n=0;n<shards;n++){
   let part;try{part=JSON.parse(await readFile(file,'utf8'));}catch{throw Error(`Missing ${file}: download/extract ALL part artifacts before assembly`);}
   if(part.format!=='pokevault-image-part-v1'||part.shard!==n||part.shards!==shards)throw Error(`Invalid part ${n}`);
   for(const [id,row] of Object.entries(part.images||{})){
-    if(!safeId(id)||!/^\.\/assets\/offline\/cards\/[A-Za-z0-9_.-]+\.(webp|png|jpg)$/.test(row?.file)||!row.file.startsWith(`./assets/offline/cards/${id}.`))throw Error(`Unsafe mapping ${id}`);
+    const suffix=/\.(webp|png|jpg)$/.exec(row?.file||'');
+    const expected=suffix?`./assets/offline/cards/${encodeURIComponent(id)}.${suffix[1]}`:null;
+    if(!safeId(id)||!suffix||row.file!==expected)throw Error(`Unsafe mapping ${id}`);
     if(cardShard(id,shards)!==n)throw Error(`Card ${id} belongs to a different shard`);
     if(entries[id])throw Error(`Duplicate card mapping: ${id}`);
-    const path=join(cardsDir,row.file.split('/').at(-1));
+    // Manifest URLs encode special IDs; filenames preserve their exact IDs.
+    const path=join(cardsDir,`${id}.${suffix[1]}`);
     try{const bytes=await readFile(path);const ext=verifiedImage(bytes);if(!ext||!row.file.endsWith(`.${ext}`))throw Error('Image header / suffix mismatch');entries[id]={file:row.file,source:row.source,bytes:bytes.length};}
     catch(error){errors.push({id,file:row.file,error:error.message});}
   }

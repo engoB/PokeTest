@@ -5,7 +5,8 @@ import {readFileSync} from 'node:fs';
 const read=name=>readFileSync(new URL(`../${name}`,import.meta.url),'utf8');
 test('only safe card IDs can become local filenames',()=>{
   assert.equal(safeId('swsh3-136'),true);
-  for(const bad of ['../x','a/b','', 'x'.repeat(111),'..'])assert.equal(safeId(bad),false);
+  assert.equal(safeId('exu-!'),true);assert.equal(safeId('exu-%3F'),true);
+  for(const bad of ['../x','a/b','', 'x'.repeat(111),'..','exu-%2F','exu-%','exu-?'])assert.equal(safeId(bad),false);
 });
 test('FR and exact EN image bases and reviewed overrides are prioritized, not guessed',()=>{
   const list=candidateBases({image:'https://assets.tcgdex.net/fr/swsh/swsh3/136'},

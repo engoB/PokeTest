@@ -105,7 +105,7 @@ async function worker(){
           catch(error){errors.push({id,url:candidate.url,error:String(error.message||error)});}
         }
       }
-      if(asset){const filename=`${id}.${asset.ext}`;await writeFile(join(imageDir,filename),asset.bytes);results[id]={file:`./assets/offline/cards/${filename}`,source,bytes:asset.bytes.length};}
+      if(asset){const filename=`${id}.${asset.ext}`;await writeFile(join(imageDir,filename),asset.bytes);results[id]={file:`./assets/offline/cards/${encodeURIComponent(id)}.${asset.ext}`,source,bytes:asset.bytes.length};}
       else misses.push(id);
     }catch(error){errors.push({id,error:String(error.message||error)});misses.push(id);}
     done++;if(done%100===0||done===chosen.length)console.log(`${done}/${chosen.length} · ${Object.keys(results).length} local images · ${misses.length} missing`);

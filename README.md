@@ -130,4 +130,20 @@ La commande `npm run pack:catalog -- --index inputs/pokevault-index-visuels.json
 
 Voir **[WORK-MOISSON-VISUELS.md](WORK-MOISSON-VISUELS.md)** pour l'installation et les contrôles. Le workflow `.github/workflows/harvest-images.yml` relance la recherche quatre fois par jour, enregistre les résultats et les échecs sur la branche de métadonnées `pokevault-image-data`, et peut ensuite télécharger les scans dans 16 artefacts isolés, après vérification des droits. Le job `assemble` vérifie les octets de tous les shards et produit un rapport. L'application détecte les packs locaux `mode: sealed` et désactive alors les recherches automatiques d'images.
 
-L'archive contient **20 559 URL validées syntaxiquement**, pas 20 559 fichiers image ; les fichiers ne seront confirmés qu'après le téléchargement réel dans GitHub Actions. Aucune action sur `pv_collection` n'est nécessaire.
+L'export initial contenait **20 559 URL** ; l'index enrichi de la v4.5 contient **20 582 URL FR**, dont les 23 récupérées lors de la première moisson. Ce sont des URL, pas des fichiers image : les fichiers seront confirmés lors du téléchargement réel dans GitHub Actions. Aucune action sur `pv_collection` n'est nécessaire.
+
+## V4.5 — correction du périmètre de la moisson
+
+Le workflow ne cible désormais que les IDs présents dans le catalogue **français** :
+22 170 cartes dans le snapshot du 24 septembre 2026. Il continue à interroger
+les onze langues TCGdex et les fournisseurs secondaires pour trouver le visuel
+de **ces mêmes cartes**, sans ajouter les cartes uniquement anglaises. Les deux
+IDs spéciaux Zarbi `exu-!` et `exu-%3F` sont conservés dans les recherches et
+dans le futur pack local.
+
+Les anciens états `needs-provider-access` de v4.4 mélangeant quota et clé absente
+sont automatiquement reprogrammés au prochain `resolve` ; les quotas épuisés
+deviennent `retry` au lieu de rester bloqués. Le checkpoint de la première
+moisson et la collection `pv_collection` ne sont pas supprimés. Le job `pack`
+construit désormais un inventaire FR uniquement. Voir
+`WORK-MOISSON-VISUELS.md` pour le contrôle du rapport.

@@ -4,13 +4,13 @@
 import {readFile,writeFile,mkdir,copyFile,stat} from 'node:fs/promises';
 import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {validIndex,LANGUAGES,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage} from './harvest-core.mjs';
+import {validIndex,LANGUAGES,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage,migrateAmbiguousProviderStates} from './harvest-core.mjs';
 import {safeId} from './offline-core.mjs';
-import {mergeCatalogue,setForCard} from './catalog-core.mjs';
+import {frenchTargetCatalogue,setForCard} from './catalog-core.mjs';
 import {matchAlternativeCard} from '../core.mjs';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 const args=process.argv.slice(2),opt=k=>{const i=args.indexOf(k);return i<0?null:args[i+1];},flag=k=>args.includes(k);
-if(flag('--help')){console.log('node scripts/harvest-images.mjs --mode resolve|pack --index inputs/pokevault-index-visuels.json [--state .image-harvest-cache/state.json] [--fr-cards file --en-cards file] [--output harvest-output] [--max-cards 400] [--shard 0/16] [--no-network] [--refresh-missing]. Optional SCRYDEX_API_KEY + SCRYDEX_TEAM_ID, POKEMONTCG_API_KEY.');process.exit(0);}
+if(flag('--help')){console.log('node scripts/harvest-images.mjs --mode resolve|pack --index inputs/pokevault-index-visuels.json [--state .image-harvest-cache/state.json] [--fr-cards file --en-cards file] [--output harvest-output] [--max-cards 400] [--shard 0/16] [--no-network] [--refresh-missing]. Target = FR cards only; 11 locales remain image sources. Optional SCRYDEX_API_KEY + SCRYDEX_TEAM_ID, POKEMONTCG_API_KEY.');process.exit(0);}
 const mode=opt('--mode')||'resolve';if(!['resolve','pack'].includes(mode))throw Error('Bad mode');
 const output=resolve(opt('--output')||join(root,'harvest-output'));
 const cacheDir=resolve(opt('--cache-dir')||join(root,'.image-harvest-cache'));
@@ -28,6 +28,8 @@ const existing=await load(indexPath);
 const index=validIndex(existing);
 const state=await load(statePath).catch(()=>({format:'pokevault-harvest-state-v1',cards:{}}));
 if(state.format!=='pokevault-harvest-state-v1'||!state.cards||typeof state.cards!=='object')throw Error('Bad state file');
+const migrated=migrateAmbiguousProviderStates(state.cards);
+if(migrated)console.log(`Requeued ${migrated} ambiguous v4.4 quota/provider results`);
 await mkdir(cacheDir,{recursive:true});await mkdir(output,{recursive:true});
 const imageDir=join(output,'assets/offline/cards');if(mode==='pack')await mkdir(imageDir,{recursive:true});
 const imageCacheDir=join(cacheDir,'cards');await mkdir(imageCacheDir,{recursive:true});
@@ -89,8 +91,11 @@ for(const lang of LANGUAGES){
   try{const data=await snapshot(lang);catalogByLang[lang]=new Map(data.filter(c=>safeId(c?.id)).map(c=>[c.id,c]));console.log(`${lang}: ${data.length} rows`);}
   catch(error){catalogErrors.push({source:`tcgdex-${lang}-inventory`,error:String(error.message||error)});console.error(`${lang}: ${error.message}`);catalogByLang[lang]=new Map();}
 }
-if(!(catalogByLang.fr.size||catalogByLang.en.size))throw Error('No FR/EN catalogue available: cannot certify total coverage.');
-const cards=mergeCatalogue([...catalogByLang.fr.values()],[...catalogByLang.en.values()]);
+if(!catalogByLang.fr.size)throw Error('FR catalogue unavailable: refusing to substitute an EN-only inventory.');
+const cards=frenchTargetCatalogue([...catalogByLang.fr.values()],[...catalogByLang.en.values()]);
+const targetIds=new Set(cards.map(c=>c.id));
+const targetIndex=Object.fromEntries(Object.entries(index).filter(([id])=>targetIds.has(id)));
+console.log(`FR target: ${cards.length} exact IDs; EN and other locales are image sources only`);
 const enSetsPath=opt('--en-sets');let enSets=[];
 try{enSets=enSetsPath?await load(resolve(enSetsPath)):await load(join(cacheDir,'en-sets.json')).catch(()=>null)||await getJSON('https://api.tcgdex.net/v2/en/sets','tcgdex-api');if(enSets?.length&&!enSetsPath)await atomic(join(cacheDir,'en-sets.json'),enSets);}catch(error){catalogErrors.push({source:'tcgdex-en-sets',error:String(error.message||error)});}
 const setMap=new Map((enSets||[]).map(s=>[s.id,s]));
@@ -147,17 +152,18 @@ async function legacy(id,english){
 const cardsById=new Map(cards.map(c=>[c.id,c]));
 const selected=cards.filter(c=>cardShard(c.id,shards)===shard);
 const now=Date.now();
-const tasks=selected.filter(c=>mode==='pack'?Boolean(index[c.id]||state.cards[c.id]?.url):(!index[c.id]&&!state.cards[c.id]?.url)&& (state.cards[c.id]?.status!=='unavailable-in-checked-sources'||flag('--refresh-missing')) && (state.cards[c.id]?.status!=='needs-provider-access'||Boolean(process.env.SCRYDEX_API_KEY)||flag('--refresh-missing')) &&(
+const scrydexReady=Boolean(process.env.SCRYDEX_API_KEY&&process.env.SCRYDEX_TEAM_ID);
+const tasks=selected.filter(c=>mode==='pack'?Boolean(index[c.id]||state.cards[c.id]?.url):(!index[c.id]&&!state.cards[c.id]?.url)&& (state.cards[c.id]?.status!=='unavailable-in-checked-sources'||flag('--refresh-missing')) && (state.cards[c.id]?.status!=='needs-provider-access'||scrydexReady||flag('--refresh-missing')) &&(
   flag('--refresh-missing')||!state.cards[c.id]?.nextRetryAt||state.cards[c.id].nextRetryAt<=now
 )).slice(0,maxCards);
-const resolved={...index};for(const [id,row] of Object.entries(state.cards))if(row?.status==='found'&&trustedHarvestURL(row.url))resolved[id]={url:row.url,source:row.source,checkedAt:row.checkedAt};
-const progress={mode,shard:shardText,totalCatalog:cards.length,selected:selected.length,originalIndex:Object.keys(index).length,planned:tasks.length,processed:0,found:0,retry:0,unavailableInCheckedSources:0,packed:0,skippedCached:0,errors:[],catalogErrors};
+const resolved={...targetIndex};for(const [id,row] of Object.entries(state.cards))if(targetIds.has(id)&&row?.status==='found'&&trustedHarvestURL(row.url))resolved[id]={url:row.url,source:row.source,checkedAt:row.checkedAt};
+const progress={mode,scope:'fr-exact-ids',sourceLocales:LANGUAGES,totalCatalog:cards.length,selected:selected.length,originalIndex:Object.keys(targetIndex).length,migratedProviderStates:migrated,planned:tasks.length,processed:0,found:0,retry:0,unavailableInCheckedSources:0,packed:0,skippedCached:0,errors:[],catalogErrors};
 const packed=Object.create(null);const reportRows=[];
-async function checkpoint(){state.updatedAt=stamped();await atomic(statePath,state);await atomic(join(output,'pokevault-index-enrichi.json'),{format:'pokevault-image-index-v1',exportedAt:stamped(),images:{...index,...Object.fromEntries(Object.entries(state.cards).filter(([,v])=>v?.status==='found'&&trustedHarvestURL(v.url)).map(([id,v])=>[id,{url:v.url,source:v.source,checkedAt:v.checkedAt}]))}});}
+async function checkpoint(){state.updatedAt=stamped();await atomic(statePath,state);await atomic(join(output,'pokevault-index-enrichi.json'),{format:'pokevault-image-index-v1',exportedAt:stamped(),scope:'fr-exact-ids',images:{...targetIndex,...Object.fromEntries(Object.entries(state.cards).filter(([id,v])=>targetIds.has(id)&&v?.status==='found'&&trustedHarvestURL(v.url)).map(([id,v])=>[id,{url:v.url,source:v.source,checkedAt:v.checkedAt}]))}});}
 async function handle(card){
-  const id=card.id;let bytes=null,entry=resolved[id],old=await cachedImage(id),attempted=0,transient=false,requiresMore=false,sourceList=[];
+  const id=card.id;let bytes=null,entry=resolved[id],old=await cachedImage(id),attempted=0,transient=false,missingScrydex=false,legacyQuota=false,legacyMetadataMissing=false,sourceList=[];
   if(old&&mode==='pack'){
-    const ext=old.ext;await copyFile(imageCachePath(id,ext),join(imageDir,`${id}.${ext}`));packed[id]={file:`./assets/offline/cards/${id}.${ext}`,source:entry?.source||'previous-cache',bytes:old.bytes.length};progress.skippedCached++;progress.packed++;return;
+    const ext=old.ext;await copyFile(imageCachePath(id,ext),join(imageDir,`${id}.${ext}`));packed[id]={file:`./assets/offline/cards/${encodeURIComponent(id)}.${ext}`,source:entry?.source||'previous-cache',bytes:old.bytes.length};progress.skippedCached++;progress.packed++;return;
   }
   if(old&&mode==='resolve'&&entry){progress.skippedCached++;return;}
   const tryCandidate=async candidate=>{
@@ -166,7 +172,7 @@ async function handle(card){
     try{const image=await downloadImage(candidate.url);if(!image)return false;
       entry={url:candidate.url,source:candidate.source,checkedAt:Date.now()};bytes=image.bytes;
       await writeFile(imageCachePath(id,image.ext),bytes);
-      if(mode==='pack'){await copyFile(imageCachePath(id,image.ext),join(imageDir,`${id}.${image.ext}`));packed[id]={file:`./assets/offline/cards/${id}.${image.ext}`,source:entry.source,bytes:bytes.length};progress.packed++;}
+      if(mode==='pack'){await copyFile(imageCachePath(id,image.ext),join(imageDir,`${id}.${image.ext}`));packed[id]={file:`./assets/offline/cards/${encodeURIComponent(id)}.${image.ext}`,source:entry.source,bytes:bytes.length};progress.packed++;}
       state.cards[id]={status:'found',...entry};resolved[id]=entry;progress.found++;return true;
     }catch(error){transient=transient||!!error.transient;progress.errors.push({id,source:candidate.source,error:String(error.message||error)});return false;}
   };
@@ -192,7 +198,7 @@ async function handle(card){
     try{
       const detail=await getDetail(lang,id);
       const base=detail?.image;
-      if(base&&/^https:\/\/assets\.tcgdex\.net\/[\w./-]+$/.test(base)){
+      if(base&&/^https:\/\/assets\.tcgdex\.net\/[\w./%!-]+$/.test(base)){
         for(const suffix of ['/low.webp','/low.png','/low.jpg','/high.webp']){
           const url=trustedHarvestURL(base.replace(/\/$/,'')+suffix);
           if(candidates.some(c=>c.url===url))continue;candidates.push({url,source:`tcgdex-${lang}-detail`});
@@ -202,18 +208,20 @@ async function handle(card){
     }catch(error){transient=true;progress.errors.push({id,source:`tcgdex-${lang}-detail`,error:String(error.message||error)});}
   }
   try{const remote=await scrydex(id,catalogByLang.en.get(id));if(remote.configured){sourceList.push('scrydex-exact-id');if(remote.candidate){for(const candidate of [remote.candidate,...(remote.candidate.alternatives||[])])if(await tryCandidate(candidate))return;}}
-      else requiresMore=true;
+      else missingScrydex=true;
   }catch(error){transient=true;progress.errors.push({id,source:'scrydex',error:String(error.message||error)});}
   try{const remote=await legacy(id,catalogByLang.en.get(id));if(remote.configured){sourceList.push('legacy-strict-match');for(const candidate of remote.candidates||[])if(await tryCandidate(candidate))return;}
-      else requiresMore=true;
+      else if(remote.reason==='budget-reached')legacyQuota=true;
+      else legacyMetadataMissing=true;
   }catch(error){transient=true;progress.errors.push({id,source:'legacy',error:String(error.message||error)});}
   if(catalogErrors.length)transient=true; // An unreachable language catalogue cannot certify absence.
-  const status=requiresMore&&!transient?'needs-provider-access':classifyResult({attempted,networkError:transient,moreProviders:requiresMore});
+  // An exhausted per-run legacy quota is NEVER a permanent credentials block.
+  const status=transient||legacyQuota?'retry':missingScrydex?'needs-provider-access':classifyResult({attempted,networkError:false,moreProviders:false});
   const prev=state.cards[id];const failures=(prev?.failures||0)+1;
   const delay=Math.min(48*3600_000,Math.max(3600_000,1800_000*2**Math.min(failures,7)));
   state.cards[id]={status,checkedAt:Date.now(),sourcesTried:[...new Set(sourceList)],failures,
     nextRetryAt:status==='retry'?Date.now()+delay:null,
-    reason:transient?'remote-temporary-error':requiresMore?'additional-provider-not-configured-or-budget':'no-valid-image-in-checked-sources'};
+    reason:transient?'remote-temporary-error':legacyQuota?'legacy-quota-exhausted':missingScrydex?'scrydex-credentials-missing':legacyMetadataMissing?'no-verified-english-metadata':'no-valid-image-in-checked-sources'};
   if(status==='retry'||status==='needs-provider-access')progress.retry++;else progress.unavailableInCheckedSources++;
   reportRows.push({id,...state.cards[id]});
 }
@@ -230,7 +238,7 @@ let n=0;try{
   await atomic(join(output,'missing-images-report.json'),{format:'pokevault-missing-images-v1',catalogueTotal:cards.length,verifiedOrIndexed:cards.length-unresolved.length,unresolved});
   const csv=['id;statut;raison;sources_testees;prochaine_tentative',...unresolved.map(c=>[c.id,c.status,c.reason,c.sourcesTried.join('|'),c.nextRetryAt?new Date(c.nextRetryAt).toISOString():''].join(';'))].join('\n');
   await writeFile(join(output,'missing-images-report.csv'),csv);
-  await writeFile(join(output,'report.md'),`# PokéVault — audit illustré\n\n- Catalogue FR+EN : ${cards.length} cartes\n- Index validé initial : ${Object.keys(index).length} URL\n- Images récupérées cette exécution : ${progress.found}\n- Images téléchargées dans le pack : ${progress.packed}\n- Couverture URL : ${report.coveragePercent}% (${cards.length-unresolved.length}/${cards.length})\n- Toujours sans URL : ${unresolved.length}\n- Statuts : ${JSON.stringify(statusCounts)}\n- Erreurs temporaires de cette exécution : ${progress.errors.length}\n- Sources catalogues indisponibles : ${catalogErrors.length}\n\nLe rapport JSON distingue les cartes non encore testées, les échecs réseau, les fournisseurs sans clé et les absences constatées dans les sources effectivement interrogées. **Aucune absence n’est certifiée sur toutes les sources internet possibles.**\n`);
+  await writeFile(join(output,'report.md'),`# PokéVault — audit illustré\n\n- **Périmètre : catalogue FR uniquement** (${cards.length} identifiants exacts, dont exu-! et exu-%3F).\n- Sources des illustrations : ${LANGUAGES.join(', ')} ; aucune carte uniquement anglaise n'est ajoutée.\n- Index FR validé initial : ${Object.keys(targetIndex).length} URL\n- Anciens blocages de quota reprogrammés : ${migrated}\n- Images récupérées cette exécution : ${progress.found}\n- Images téléchargées dans le pack : ${progress.packed}\n- Couverture URL FR : ${report.coveragePercent}% (${cards.length-unresolved.length}/${cards.length})\n- Cartes FR sans URL : ${unresolved.length}\n- Statuts : ${JSON.stringify(statusCounts)}\n- Erreurs temporaires de cette exécution : ${progress.errors.length}\n- Sources catalogues indisponibles : ${catalogErrors.length}\n\nLes quotas épuisés sont réessayés automatiquement lors des prochains passages. Une absence de clé Scrydex reste signalée séparément. **Aucune absence n'est certifiée sur toutes les sources internet possibles.**\n`);
   if(mode==='pack')await atomic(join(output,`images-part-${shard}-of-${shards}.json`),{format:'pokevault-image-part-v1',shard,shards,images:packed});
 }
 console.log(`Report: ${join(output,'report.json')}. All image metadata is resumable in ${statePath}.`);

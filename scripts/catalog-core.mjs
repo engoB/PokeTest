@@ -15,6 +15,13 @@ export function mergeCatalogue(french,english){
   }
   return [...byId.values()].sort((a,b)=>a.id.localeCompare(b.id,'en'));
 }
+// The app's target inventory is the FR catalogue. EN is only an alternate
+// source of images/metadata for those SAME exact card IDs, not extra cards.
+export function frenchTargetCatalogue(french,english){
+  if(!Array.isArray(french)||!french.length)throw Error('French inventory is required');
+  const frenchIds=new Set(french.filter(c=>safeId(c?.id)).map(c=>c.id));
+  return mergeCatalogue(french,english).filter(card=>frenchIds.has(card.id));
+}
 export function mergeSets(french,english){
   const byId=new Map();
   for(const [lang,items] of [['en',english],['fr',french]]){

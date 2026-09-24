@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <link rel="stylesheet" href="./style.css">
   <title>PokéVault — Mon classeur</title>
-  <script defer src="./app.bundle.js?v=4.2.0"></script>
+  <script defer src="./app.bundle.js?v=4.4.0"></script>
   <script>
     window.addEventListener('load', () => setTimeout(() => {
       if (window.__pvBooted) return;
@@ -83,8 +83,8 @@
             <div class="price-coverage-heading"><strong>Vérification des visuels</strong><span id="image-status" class="image-status">Prête à analyser</span></div>
             <p id="image-progress" role="status" aria-live="polite">0 / 0 vérifiés · 0 trouvés · 0 introuvables</p>
             <progress id="image-progress-bar" max="1" value="0" aria-label="Progression de la vérification des illustrations"></progress>
-            <p id="image-warning">Les cartes non vérifiées sont en attente ; les échecs réseau restent à réessayer.</p>
-            <div class="price-actions"><button id="image-next" type="button" class="button button-primary">Vérifier 100 visuels</button><button id="image-all" type="button" class="button button-outline">Vérifier tout le périmètre</button><button id="image-stop" type="button" class="button button-outline" hidden>Mettre en pause</button></div>
+            <p id="image-warning">Analyse automatique du catalogue entier pendant que l’app est ouverte ; échecs réseau et quotas sont réessayés avec temporisation.</p>
+            <div class="price-actions"><button id="image-next" type="button" class="button button-primary">Continuer la recherche</button><button id="image-all" type="button" class="button button-outline">Rechercher tout le catalogue</button><button id="image-stop" type="button" class="button button-outline" hidden>Mettre en pause</button></div>
           </section>
           <div id="grid-origin" aria-hidden="true"></div>
           <div id="grid-top" class="virtual-spacer" aria-hidden="true"></div>

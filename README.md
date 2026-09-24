@@ -123,3 +123,11 @@ Les prix **ne sont pas figés dans le pack** : les cotes évoluent, et l'app con
 La commande `npm run pack:catalog -- --index inputs/pokevault-index-visuels.json --strict --output dist` récupère les inventaires **FR + EN** et les fiches de **chaque carte**, conserve les IDs propres à chaque impression, construit les fiches des extensions et écrit un rapport exhaustif sous `dist/assets/offline/catalogue-report.json`. Sans `detailsComplete: true`, le build est partiel et ne doit pas être livré comme un catalogue intégral. Le cache `.catalogue-cache` permet de relancer la commande sans tout retélécharger. Pour un essai sans réseau, utiliser les fixtures de `tests/catalogue.test.mjs` ; cela valide le processus mais ne constitue pas les 22 000 fiches réelles.
 
 **État des ressources :** le fichier `inputs/pokevault-index-visuels.json` reprend ton export d'URL d'images vérifiées ; il ne contient ni photos, ni cartes de collection, ni prix. Le build de catalogue n'emporte pas les illustrations protégées. Voir `WORK-CATALOGUE.md` pour la livraison complète et le test navigateur hors connexion, puis `ROADMAP-COTES.md` pour les futurs rafraîchissements manuels des prix.
+
+---
+
+## V4.4 — Moisson des images automatisée sur GitHub
+
+Voir **[WORK-MOISSON-VISUELS.md](WORK-MOISSON-VISUELS.md)** pour l'installation et les contrôles. Le workflow `.github/workflows/harvest-images.yml` relance la recherche quatre fois par jour, enregistre les résultats et les échecs sur la branche de métadonnées `pokevault-image-data`, et peut ensuite télécharger les scans dans 16 artefacts isolés, après vérification des droits. Le job `assemble` vérifie les octets de tous les shards et produit un rapport. L'application détecte les packs locaux `mode: sealed` et désactive alors les recherches automatiques d'images.
+
+L'archive contient **20 559 URL validées syntaxiquement**, pas 20 559 fichiers image ; les fichiers ne seront confirmés qu'après le téléchargement réel dans GitHub Actions. Aucune action sur `pv_collection` n'est nécessaire.

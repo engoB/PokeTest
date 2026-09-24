@@ -46,7 +46,7 @@ export function trustedIndex(raw){
     if(!safeId(id)||typeof entry?.url!=='string'||!Number.isFinite(entry?.checkedAt)||entry.checkedAt<=0)continue;
     try{
       const url=new URL(entry.url);
-      if(url.protocol!=='https:'||url.username||url.password||!['assets.tcgdex.net','images.pokemontcg.io'].includes(url.hostname))continue;
+      if(url.protocol!=='https:'||url.username||url.password||!['assets.tcgdex.net','images.pokemontcg.io','images.scrydex.com'].includes(url.hostname))continue;
       if(!/\.(?:webp|png|jpe?g)$/i.test(url.pathname))continue;
       clean[id]={url:url.href,source:entry.source||'verified-index',checkedAt:entry.checkedAt};
     }catch{}

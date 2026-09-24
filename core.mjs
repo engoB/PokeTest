@@ -51,7 +51,7 @@ export function imageUrls(base, quality='low') {
 export function trustedImageUrl(raw) {
   try {
     const u = new URL(raw);
-    if (u.protocol !== 'https:' || !['assets.tcgdex.net','images.pokemontcg.io'].includes(u.hostname) || u.username || u.password) return null;
+    if (u.protocol !== 'https:' || !['assets.tcgdex.net','images.pokemontcg.io','images.scrydex.com'].includes(u.hostname) || u.username || u.password) return null;
     return u.href;
   } catch {return null;}
 }

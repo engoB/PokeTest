@@ -1,0 +1,6 @@
+Mission : installer maintenant la moisson automatique des visuels PokéVault.
+
+Ouvre l'archive PokeVault-v4.4-MOISSON-GITHUB.zip. Lis WORK-MOISSON-VISUELS.md.
+Dans le dépôt GitHub existant engoB/PokeTest, crée une branche avec tous les fichiers du dossier PokeTest-Premium/ et ouvre une PR vers main. Le fichier indispensable est .github/workflows/harvest-images.yml ; l'index inputs/pokevault-index-visuels.json contient 20 559 URL déjà résolues. Lance npm run check et n'efface aucune donnée de collection.
+Après fusion de la PR sur main, déclenche UNE fois Actions > PokéVault - moisson d'illustrations > Run workflow > resolve. Les recherches continueront automatiquement quatre fois par jour, même quand la PWA est fermée. Donne-moi le lien du run et le rapport report.json/report.md ; distingue pending, retry, needs-provider-access et unavailable-in-checked-sources. Si GitHub bloque les écritures, indique précisément la permission à corriger au lieu de prétendre que le déploiement a réussi.
+La seconde phase `pack` télécharge et valide les vrais fichiers dans 16 artefacts et assemble un manifeste GitHub, mais ne la lance qu'après confirmation des droits d'utilisation et des conditions des fournisseurs. Ne publie pas les scans dans un dépôt Git public.

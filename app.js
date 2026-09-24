@@ -10,13 +10,13 @@ const API='https://api.tcgdex.net/v2';
 // Transitional, unauthenticated fallback only. The legacy provider retires March 2027.
 const ALTERNATE_API='https://api.pokemontcg.io/v2/cards';
 const OFFLINE_ROOT='./assets/offline/';
-const offlinePack={images:Object.create(null),catalog:null,sets:null,setDetails:null,detailsManifest:null,detailShards:new Map()};
+const offlinePack={images:Object.create(null),sealed:false,catalog:null,sets:null,setDetails:null,detailsManifest:null,detailShards:new Map()};
 const $=id=>document.getElementById(id);
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state={
   allSets:[],allCards:[],cards:[],catalogStatus:'loading',cardIndex:new Map(),selectedSet:'all',status:'all',type:'all',sort:'number',
   layout:'comfortable',collection:{},prices:{},db:null,dirtyPrices:new Set(),details:new Map(),pendingDetails:new Map(),
-  imageRecords:new Map(),imageExtras:new Map(),imageFailures:new Map(),pendingFallback:new Map(),english:new Map(),
+  imageRecords:new Map(),imageExtras:new Map(),imageFailures:new Map(),imageRetryAt:new Map(),imageRetryCount:new Map(),pendingFallback:new Map(),english:new Map(),
   tileCache:new Map(),imageProviderErrors:new Set(),imageTransient:new Map(),imageScanToken:0,imageScanning:false,imagePaused:false,imageScanScope:[],imageScanLimit:0,
   pendingEnglish:new Map(),imageCoverageTimer:0,imageAutoTimer:0,
   englishSets:new Map(),altChecked:new Set(),altAttempted:new Set(),altCalls:0,altLastCall:0,altTail:Promise.resolve(),queue:[],running:0,
@@ -31,6 +31,7 @@ function saveCollection(next){
 }
 // Never clear or migrate pv_collection on startup. Old installations retain their cards.
 state.collection=readCollection(storage('pv_collection',{}));
+state.imagePaused=storage('pv_image_scan_paused',false)===true;
 for(const [id,p] of Object.entries(storage('pv_prices',{}))){
   const trend=numeric(p?.trend);
   if(trend!==null)state.prices[id]={trend,avg30:numeric(p.avg30),low:numeric(p.low),fetchedAt:0,updated:null};
@@ -83,6 +84,7 @@ async function loadOfflinePack(){
   try{const response=await fetch(`${OFFLINE_ROOT}images.json`,{cache:'no-store'});if(!response.ok)return;manifest=await response.json();}
   catch{return;}
   if(manifest?.version!==1||!manifest.images||typeof manifest.images!=='object')return;
+  offlinePack.sealed=manifest.mode==='sealed';
   for(const [id,entry] of Object.entries(manifest.images)){
     if(!/^[A-Za-z0-9_.-]{1,110}$/.test(id)||['__proto__','prototype','constructor'].includes(id)||!entry?.file||entry.file!==`./assets/offline/cards/${id}.${entry.file.split('.').pop()}`||!/\.(webp|png|jpg)$/.test(entry.file))continue;
     offlinePack.images[id]=entry;
@@ -97,7 +99,7 @@ async function loadOfflinePack(){
   if(sets.status==='fulfilled'&&Array.isArray(sets.value))offlinePack.sets=sets.value;
   if(setDetails.status==='fulfilled'&&setDetails.value&&typeof setDetails.value==='object'&&!Array.isArray(setDetails.value))offlinePack.setDetails=setDetails.value;
   if(detailsManifest.status==='fulfilled'&&detailsManifest.value?.format==='pokevault-catalogue-manifest-v1')offlinePack.detailsManifest=detailsManifest.value;
-  if(index.status==='fulfilled'&&index.value?.format==='pokevault-image-index-v1'){
+  if(!offlinePack.sealed&&index.status==='fulfilled'&&index.value?.format==='pokevault-image-index-v1'){
     for(const [id,entry] of Object.entries(index.value.images||{})){
       if(!/^[A-Za-z0-9_.-]{1,110}$/.test(id)||offlinePack.images[id]||!trustedImageUrl(entry?.url)||!Number.isFinite(entry?.checkedAt))continue;
       state.imageRecords.set(id,{url:entry.url,source:entry.source||'previously-verified',checkedAt:entry.checkedAt});
@@ -252,7 +254,16 @@ function updateCoverage(){
 // The visual scanner is independent of price verification. It keeps working while
 // users browse and never writes to pv_collection. Only a successfully loaded image
 // or a completed multi-source miss counts as verified.
-function currentImageScope(){return state.scope;}
+function currentImageScope(){return state.allCards.length?state.allCards:state.scope;}
+// Artwork coverage is for the ENTIRE catalogue, independent of the selected extension or filters.
+const LEGACY_DAILY_LIMIT=400;
+function legacyBudget(){
+  const windowStart=Math.floor(Date.now()/86400000)*86400000;
+  const previous=storage('pv_secondary_budget_v1',{});
+  return previous.windowStart===windowStart?{windowStart,used:Number(previous.used)||0}:{windowStart,used:0};
+}
+function nextLegacyWindow(){return (Math.floor(Date.now()/86400000)+1)*86400000;}
+function useLegacyBudget(){const value=legacyBudget();if(value.used>=LEGACY_DAILY_LIMIT)return false;value.used++;try{localStorage.setItem('pv_secondary_budget_v1',JSON.stringify(value));}catch{}return true;}
 function scheduleImageCoverage(){
   if(state.imageCoverageTimer)return;
   state.imageCoverageTimer=setTimeout(()=>{state.imageCoverageTimer=0;updateImageCoverage();},350);
@@ -269,29 +280,37 @@ function updateImageCoverage(){
     $('image-stop').hidden=true;
     return;
   }
+  if(offlinePack.sealed){
+    const scope=currentImageScope(),local=scope.filter(c=>offlinePack.images[c.id]).length;
+    $('image-progress').textContent=`${local.toLocaleString('fr-FR')} / ${scope.length.toLocaleString('fr-FR')} visuels locaux · ${(scope.length-local).toLocaleString('fr-FR')} non embarqués`;
+    $('image-progress-bar').max=Math.max(1,scope.length);$('image-progress-bar').value=local;
+    $('image-warning').textContent=local===scope.length?'Toutes les illustrations de ce périmètre sont embarquées. Aucune vérification réseau.':`Pack figé : ${scope.length-local} illustrations non embarquées. Consulter le rapport de la moisson GitHub ; aucune vérification réseau automatique.`;
+    $('image-next').hidden=true;$('image-all').hidden=true;$('image-stop').hidden=true;
+    $('image-status').textContent='Pack local';return;
+  }
   const stats=imageCoverage(currentImageScope(),state.imageRecords,state.imageTransient);
   $('image-progress').textContent=`${stats.checked.toLocaleString('fr-FR')} / ${stats.total.toLocaleString('fr-FR')} vérifiés · ${stats.found.toLocaleString('fr-FR')} trouvés · ${stats.missing.toLocaleString('fr-FR')} introuvables`;
   $('image-progress-bar').max=Math.max(1,stats.total);
   $('image-progress-bar').value=stats.checked;
   const remaining=stats.pending+stats.error+stats.checking;
   const suffix=stats.error?` · ${stats.error.toLocaleString('fr-FR')} à réessayer`:'';
-  const quota=state.altCalls>=60?' · Limite de la source secondaire atteinte pour cette session.':'';
+  const quota=legacyBudget().used>=400?' · Source secondaire en pause jusqu’à demain (quota prudent).':'';
   $('image-warning').textContent=state.imageScanning
     ?`Recherche en arrière-plan · ${stats.checking} en cours · ${stats.pending} en attente${suffix}${quota}. Vous pouvez continuer à défiler.`
     :state.imagePaused?`Recherche en pause · ${remaining} à vérifier${suffix}${quota}. Les images déjà trouvées restent en cache.`
     :remaining?`${stats.pending} non encore recherchés${suffix}${quota}. « Introuvable » signifie que les sources ont été vérifiées.`
-    :'Périmètre vérifié. Les échecs confirmés seront retentés après 24 h.';
+    :'Catalogue analysé selon les sources disponibles. Les échecs confirmés seront retentés après 24 h.';
   $('image-next').hidden=remaining===0;
   $('image-next').disabled=state.imageScanning||!navigator.onLine;
   $('image-next').textContent=`Vérifier ${Math.min(100,remaining)} visuels`;
   $('image-all').hidden=remaining<=100;
   $('image-all').disabled=state.imageScanning||!navigator.onLine;
   $('image-stop').hidden=!state.imageScanning;
-  $('image-status').textContent=state.imageScanning?'Analyse active':state.imagePaused?'En pause':remaining?'Prête à analyser':'À jour';
+  $('image-status').textContent=state.imageScanning?'Analyse automatique':state.imagePaused?'En pause':remaining?'Analyse automatique programmée':'À jour';
 }
 function markImageStatus(id,status){
-  if(status==='found'||status==='missing')state.imageTransient.delete(id);
-  else state.imageTransient.set(id,status);
+  if(status==='found'||status==='missing'){state.imageTransient.delete(id);state.imageRetryAt.delete(id);state.imageRetryCount.delete(id);}
+  else{state.imageTransient.set(id,status);if(status==='error'){const attempts=(state.imageRetryCount.get(id)||0)+1;state.imageRetryCount.set(id,attempts);const dailyBudget=legacyBudget().used>=400;state.imageRetryAt.set(id,Date.now()+(dailyBudget?Math.max(3600000,nextLegacyWindow()-Date.now()):Math.min(3600000,20000*2**Math.min(attempts,7))));}}
   for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){
     const label=tile.querySelector('.ghost-label');if(label)label.textContent=imageLabel(id);
   }
@@ -299,18 +318,19 @@ function markImageStatus(id,status){
   scheduleImageCoverage();
 }
 function imageLabel(id){
+  if(offlinePack.sealed&&!offlinePack.images[id])return 'Visuel non embarqué';
   const status=imageState(id,state.imageRecords,state.imageTransient);
   return status==='checking'?'Recherche en cours…':status==='missing'?'Aucun visuel trouvé':status==='error'?'Recherche à reprendre':status==='found'?'':'Recherche non commencée';
 }
 function cancelImageScan(){state.imageScanToken++;state.imageScanning=false;clearTimeout(state.imageAutoTimer);scheduleImageCoverage();}
-function stopImageScan(){state.imagePaused=true;cancelImageScan();}
+function stopImageScan(){state.imagePaused=true;try{localStorage.setItem('pv_image_scan_paused','true');}catch{}cancelImageScan();}
 function imageCandidates(){
   const cards=currentImageScope();
   const owned=[],visible=[],rest=[];
   const displayed=new Set([...$('cards-grid').querySelectorAll('.card-tile')].map(tile=>tile.dataset.id));
   for(const card of cards){
     const status=imageState(card.id,state.imageRecords,state.imageTransient);
-    if(status==='found'||status==='missing'||status==='checking')continue;
+    if(status==='found'||status==='missing'||status==='checking'||(status==='error'&&(state.imageRetryAt.get(card.id)||0)>Date.now()))continue;
     if(state.collection[card.id])owned.push(card);
     else if(displayed.has(card.id))visible.push(card);
     else rest.push(card);
@@ -318,13 +338,19 @@ function imageCandidates(){
   return [...owned,...visible,...rest];
 }
 function startAutomaticImageScan(){
-  if(state.imagePaused||state.imageScanning||!state.cards.length||!navigator.onLine)return;
+  if(offlinePack.sealed)return;
+  if(state.imagePaused||state.imageScanning||!state.allCards.length||!navigator.onLine)return;
   clearTimeout(state.imageAutoTimer);
+  const ready=imageCandidates().length;
+  const earliest=Math.min(...[...state.imageRetryAt.values()].filter(t=>t>Date.now()));
+  if(!ready&&!Number.isFinite(earliest))return;
+  const wait=ready?950:Math.max(2000,Math.min(600000,earliest-Date.now()));
   state.imageAutoTimer=setTimeout(()=>{
-    if(state.imagePaused||state.imageScanning)return;
+    if(state.imagePaused||state.imageScanning||!navigator.onLine)return;
     const remaining=imageCandidates().length;
-    if(remaining)scanImages(Math.min(remaining,state.selectedSet==='all'?100:300));
-  },650);
+    if(remaining)scanImages(Math.min(remaining,60));
+    else startAutomaticImageScan();
+  },wait);
 }
 function probeImage(url,timeout=8500){
   return new Promise(resolve=>{
@@ -371,7 +397,7 @@ async function verifyCardImage(id){
 }
 async function scanImages(limit=100){
   if(state.imageScanning||!navigator.onLine)return;
-  state.imagePaused=false;const token=++state.imageScanToken;
+  state.imagePaused=false;try{localStorage.setItem('pv_image_scan_paused','false');}catch{}const token=++state.imageScanToken;
   const candidates=imageCandidates().slice(0,limit);
   for(const card of candidates)if(state.imageTransient.get(card.id)==='error'){state.imageFailures.delete(card.id);state.imageProviderErrors.delete(card.id);if(!state.altChecked.has(card.id))state.altAttempted.delete(card.id);}
   state.imageScanning=true;updateImageCoverage();
@@ -385,7 +411,7 @@ async function scanImages(limit=100){
       if(i%8===0)updateImageCoverage();
       await sleep(140);
     }
-  }finally{if(token===state.imageScanToken){state.imageScanning=false;updateImageCoverage();}}
+  }finally{if(token===state.imageScanToken){state.imageScanning=false;updateImageCoverage();startAutomaticImageScan();}}
 }
 function scanAllImages(){
   const count=imageCandidates().length;
@@ -595,6 +621,7 @@ function candidateUrls(entry,quality){
   return [...new Set(urls.map(trustedImageUrl).filter(Boolean))].map(url=>({url,entry}));
 }
 function imageOptions(id,quality){
+  if(offlinePack.sealed&&!offlinePack.images[id])return [];
   const card=state.cardIndex.get(id);
   const record=state.imageRecords.get(id);
   if(record?.verificationVersion===3&&record?.missingUntil>Date.now())return [];
@@ -677,7 +704,7 @@ async function getEnglish(id){
   return promise;
 }
 async function secondaryImage(id,english){
-  if(state.altChecked.has(id)||state.altAttempted.has(id)||state.altCalls>=60||!navigator.onLine)return false;
+  if(state.altChecked.has(id)||state.altAttempted.has(id)||legacyBudget().used>=LEGACY_DAILY_LIMIT||!navigator.onLine)return false;
   const card=state.cardIndex.get(id);
   let set=english?.set;
   if(!set?.name){
@@ -689,10 +716,10 @@ async function secondaryImage(id,english){
   state.altAttempted.add(id);
   // Serialize secondary calls: rapid scrolling must not cause a burst of requests.
   const run=state.altTail.catch(()=>{}).then(async()=>{
-    if(state.altCalls>=60)return false;
-    const wait=Math.max(0,420-(Date.now()-state.altLastCall));
+    if(legacyBudget().used>=LEGACY_DAILY_LIMIT)return false;
+    const wait=Math.max(0,2300-(Date.now()-state.altLastCall));
     if(wait)await sleep(wait);
-    state.altLastCall=Date.now();state.altCalls++;
+    if(!useLegacyBudget())return false;state.altLastCall=Date.now();state.altCalls++;
     const phrase=value=>String(value).replace(/["\\]/g,' ').trim();
     const query=`number:"${phrase(card.localId)}" set.name:"${phrase(set.name)}"`;
     const url=`${ALTERNATE_API}?q=${encodeURIComponent(query)}&pageSize=100&select=${encodeURIComponent('id,name,number,set,images')}`;
@@ -708,6 +735,7 @@ async function secondaryImage(id,english){
   return run.catch(error=>{state.altAttempted.delete(id);state.imageProviderErrors.add(id);throw error;});
 }
 async function ensureFallback(id,{force=false}={}){
+  if(offlinePack.sealed)return false;
   if(state.pendingFallback.has(id))return state.pendingFallback.get(id);
   if(!navigator.onLine)return false;
   const cached=state.imageRecords.get(id);
@@ -793,7 +821,7 @@ function updateDialogPrice(id){
 }
 async function openDialog(id){
   const card=state.cardIndex.get(id);if(!card)return;
-  state.inspected=id;$('dialog-title').textContent=card.name;
+  state.inspected=id;$('retry-image').hidden=offlinePack.sealed;$('dialog-title').textContent=card.name;
   $('dialog-subtitle').textContent=`${state.allSets.find(s=>s.id===id.split('-')[0])?.name||card.set?.name||'Carte Pokémon'} · № ${card.localId}`;
   $('dialog-rarity').textContent=card.rarity||'Carte de collection';updateDialogQuantity(id);updateDialogPrice(id);updateImageSource(id);
   const img=$('dialog-image');img.__tried=new Set();img.__resolving=false;img.classList.remove('is-loaded');img.hidden=true;

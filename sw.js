@@ -1,7 +1,7 @@
 /* Versioned PWA shell; API and visited images remain available offline after first load. */
-const VERSION='pv-v4.2';
+const VERSION='pv-v4.4';
 const SHELL=`${VERSION}-shell`,DATA=`${VERSION}-data`,IMAGES=`${VERSION}-images`,PACK=`${VERSION}-offline-pack`;
-const APP_FILES=['./','./index.html','./app.bundle.js?v=4.2.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
+const APP_FILES=['./','./index.html','./app.bundle.js?v=4.4.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const shell=await caches.open(SHELL);
   await shell.addAll(APP_FILES);
@@ -30,7 +30,21 @@ self.addEventListener('install',event=>event.waitUntil((async()=>{
   await self.skipWaiting();
 })()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
-  for(const key of await caches.keys())if(key.startsWith('pv-')&&!key.startsWith(VERSION))await caches.delete(key);
+  // Upgrade WITHOUT erasing images already downloaded by older PWA versions.
+  const target=await caches.open(IMAGES);
+  for(const key of await caches.keys())if(key.startsWith('pv-')&&!key.startsWith(VERSION)){
+    if(/-images$/.test(key)){
+      let copied=true;
+      try{const source=await caches.open(key);for(const request of await source.keys()){
+        if(await target.match(request))continue;const response=await source.match(request);if(response)await target.put(request,response);
+      }}catch(error){copied=false;console.warn('Image cache migration postponed',error);}
+      if(copied)await caches.delete(key); // Retain original if quota blocks the migration.
+    }else if(/-offline-pack$/.test(key)){
+      // Keep the old local pack cache until the new one is installed; older packs may
+      // contain thousands of card files, and a forced deletion would lose them offline.
+      continue;
+    }else await caches.delete(key);
+  }
   await self.clients.claim();
 })()));
 async function limitCache(name,max){

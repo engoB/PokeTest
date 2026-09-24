@@ -1,0 +1,13 @@
+dist/
+node_modules/
+*.log
+# Artwork packs must not be committed to the public repository without permission.
+assets/offline/
+
+# Harvester checkpoints and artwork: never commit large scans to public source control.
+.image-harvest-cache/
+harvest-cache/
+harvest-output/
+
+.catalogue-cache/
+artifacts/

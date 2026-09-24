@@ -60,7 +60,7 @@ jobs:
             git fetch -q origin refs/heads/pokevault-image-data:refs/remotes/origin/pokevault-image-data || true
             git show refs/remotes/origin/pokevault-image-data:state.json > harvest-cache/state.json || rm -f harvest-cache/state.json
           fi
-      - name: Resolve all FR IDs automatically - free set batches and weekly retries
+      - name: Resolve all FR IDs automatically - free set batches and daily rechecks
         env:
           POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }}
           MAX_CARDS: ${{ inputs.max_cards || 400 }}

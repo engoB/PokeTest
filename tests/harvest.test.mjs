@@ -111,7 +111,8 @@ test('free-only resolves with free sources, never calls Scrydex, and records exh
     assert.equal(report.statusCounts['unavailable-in-checked-sources'],1);
   }finally{rmSync(tmp,{recursive:true,force:true});}
 });
-test('automatically revisits exhausted free sources after seven days, never before',()=>{
+test('automatically revisits exhausted free sources after 24 hours, never before',()=>{
+  assert.equal(FREE_RECHECK_INTERVAL_MS,24*3600_000);
   const now=Date.now();
   const cards=['pending','retry','old-exhausted','new-exhausted'].map(id=>({id}));
   const state={

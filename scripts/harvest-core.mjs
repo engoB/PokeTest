@@ -5,7 +5,7 @@ export const LANGUAGES=['fr','en','de','es','it','pt','pt-br','ja','zh-tw','id',
 export const IMAGE_HOSTS=new Set(['assets.tcgdex.net','images.pokemontcg.io','images.scrydex.com']);
 // An unsuccessful lookup is a snapshot of the free sources, not a permanent
 // verdict. Recheck it periodically without asking the user to click anything.
-export const FREE_RECHECK_INTERVAL_MS=7*24*3600_000;
+export const FREE_RECHECK_INTERVAL_MS=24*3600_000;
 export function trustedHarvestURL(raw){
   try{if(typeof raw!=='string'||/(?:^|\/)(?:\.\.|(?:%2e){2})(?=\/|$)/i.test(raw))return null;const u=new URL(raw);if(u.protocol!=='https:'||u.username||u.password||!IMAGE_HOSTS.has(u.hostname)||u.port)return null;
     if(!/^\/[\w./%!-]+$/.test(u.pathname)||u.pathname.includes('..'))return null;
@@ -87,7 +87,7 @@ export function migrateFreeOnlyProviderStates(cards){
 }
 // New FR cards get the first opportunity to use the free per-run quota.
 // Previously failed cards follow in oldest-retry-first order; the exhausted
-// free-source group is automatically rechecked every seven days.
+// free-source group is automatically rechecked every 24 hours.
 export function prioritizeHarvestTasks(selected,index,stateCards,{mode='resolve',maxCards=400,now=Date.now(),refreshMissing=false,scrydexReady=false,freeOnly=false,recheckIntervalMs=FREE_RECHECK_INTERVAL_MS}={}){
   if(mode==='pack')return selected.filter(c=>Boolean(index[c.id]||trustedHarvestURL(stateCards[c.id]?.url))).slice(0,maxCards);
   const pending=[],retry=[],provider=[],scheduled=[],refresh=[];

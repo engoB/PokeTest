@@ -60,17 +60,24 @@ jobs:
             git fetch -q origin refs/heads/pokevault-image-data:refs/remotes/origin/pokevault-image-data || true
             git show refs/remotes/origin/pokevault-image-data:state.json > harvest-cache/state.json || rm -f harvest-cache/state.json
           fi
-      - name: Resolve next 400 French card IDs - 11 image locales, strict fallback, quota backoff
+      - name: Resolve unseen French IDs first - free sources only, then due retries
         env:
-          SCRYDEX_API_KEY: ${{ secrets.SCRYDEX_API_KEY }}
-          SCRYDEX_TEAM_ID: ${{ secrets.SCRYDEX_TEAM_ID }}
           POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }}
           MAX_CARDS: ${{ inputs.max_cards || 400 }}
         run: |
           node scripts/harvest-images.mjs --mode resolve \
             --index inputs/pokevault-index-visuels.json \
             --state harvest-cache/state.json --cache-dir harvest-cache \
-            --output harvest-output --max-cards "$MAX_CARDS" --legacy-budget 55
+            --output harvest-output --max-cards "$MAX_CARDS" --legacy-budget 100 --free-only
+      - name: Generate FR-only unresolved research workbook (6 catalogues, no scraping)
+        if: success()
+        run: |
+          node scripts/image-research.mjs \
+            --fr-cards harvest-cache/catalog-fr.json \
+            --en-cards harvest-cache/catalog-en.json \
+            --state harvest-cache/state.json \
+            --index harvest-output/pokevault-index-enrichi.json \
+            --output harvest-output/research
       - name: Back up URL index and state to dedicated metadata branch
         if: always()
         continue-on-error: true # Artifacts remain a fallback if repository policy blocks branch writes.
@@ -119,6 +126,7 @@ jobs:
             harvest-output/missing-images-report.json
             harvest-output/missing-images-report.csv
             harvest-output/pokevault-index-enrichi.json
+            harvest-output/research/
           if-no-files-found: warn
           retention-days: 90
   pack:
@@ -152,14 +160,11 @@ jobs:
             git show refs/remotes/origin/pokevault-image-data:state.json > harvest-cache/state.json || rm -f harvest-cache/state.json
           fi
       - name: Download and validate real image bytes - isolated shard
-        env:
-          SCRYDEX_API_KEY: ${{ secrets.SCRYDEX_API_KEY }}
-          SCRYDEX_TEAM_ID: ${{ secrets.SCRYDEX_TEAM_ID }}
         run: |
           node scripts/harvest-images.mjs --mode pack \
             --index inputs/pokevault-index-visuels.json \
             --state harvest-cache/state.json --cache-dir harvest-cache \
-            --output dist --shard '${{ matrix.shard }}/16'
+            --output dist --shard '${{ matrix.shard }}/16' --free-only
           mkdir -p dist/parts
           mv 'dist/images-part-${{ matrix.shard }}-of-16.json' dist/parts/
       - name: Publish physical image shard (never commit artwork to source control)

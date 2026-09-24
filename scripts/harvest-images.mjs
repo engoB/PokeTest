@@ -140,17 +140,63 @@ async function scrydex(id,english){
 }
 let legacyBudget=Number(opt('--legacy-budget')??(process.env.POKEMONTCG_API_KEY?180:60));
 if(!Number.isInteger(legacyBudget)||legacyBudget<0||legacyBudget>1000)throw Error('Invalid legacy budget');
+const legacyStats={requests:0,batchSets:0,cacheHits:0};
+const legacySetMemory=new Map();
+const LEGACY_SET_CACHE_MS=14*24*3600_000;
+const LEGACY_PAGE_SIZE=250;
+const legacyHeaders=process.env.POKEMONTCG_API_KEY?{'X-Api-Key':process.env.POKEMONTCG_API_KEY}:{};
+const phrase=v=>String(v).replace(/["\\]/g,' ').trim();
+// A single, strictly matched set lookup can resolve dozens of cards while
+// using only one or two free API requests. Never trust a set's card order.
+async function legacySetCards(setId,set){
+  if(legacySetMemory.has(setId)){legacyStats.cacheHits++;return legacySetMemory.get(setId);}
+  const file=join(cacheDir,'legacy-sets',`${setId}.json`);
+  const cached=await load(file).catch(()=>null);
+  if(cached?.format==='pokevault-legacy-set-cache-v1'&&cached.setName===set.name&&
+     Array.isArray(cached.cards)&&Date.now()-cached.fetchedAt<LEGACY_SET_CACHE_MS){
+    legacyStats.cacheHits++;legacySetMemory.set(setId,cached.cards);return cached.cards;
+  }
+  let rows=[],page=1,total=Infinity;
+  while(rows.length<total){
+    if(legacyBudget<=0)return null; // No incomplete batch is ever cached.
+    legacyBudget--;legacyStats.requests++;
+    const q=`set.name:"${phrase(set.name)}"`;
+    const url=`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&page=${page}&pageSize=${LEGACY_PAGE_SIZE}&select=${encodeURIComponent('id,name,number,set,images')}`;
+    const data=await getJSON(url,'legacy',legacyHeaders);
+    if(!Array.isArray(data?.data))return null;
+    rows.push(...data.data);
+    total=Number.isFinite(data.totalCount)?data.totalCount:rows.length;
+    if(!data.data.length||rows.length>=total)break;
+    // A malformed/very large result must not consume the daily free quota.
+    if(page>=8)return null;
+    page++;
+  }
+  legacyStats.batchSets++;
+  legacySetMemory.set(setId,rows);
+  await atomic(file,{format:'pokevault-legacy-set-cache-v1',setId,setName:set.name,fetchedAt:Date.now(),cards:rows});
+  return rows;
+}
 async function legacy(id,english){
-  if(legacyBudget<=0)return {configured:false,reason:'budget-reached'};
   const card=cardsById.get(id),setId=setForCard(id,[...setMap.values()]);const set=setMap.get(setId);
   if(!set?.name||!card?.localId||!english?.name)return {configured:false,reason:'no-verified-english-metadata'};
-  legacyBudget--;
-  const phrase=v=>String(v).replace(/["\\]/g,' ').trim();
+  const target={number:card.localId,englishName:english.name,englishSet:set.name,printedTotal:set.cardCount?.official};
+  // Batch only if several selected unresolved cards share this exact set.
+  if((taskSetCounts.get(setId)||0)>=2){
+    const batch=await legacySetCards(setId,set);
+    if(batch){
+      const match=matchAlternativeCard(target,batch);
+      if(match)return {configured:true,candidates:[...new Set([match.small,match.large].filter(trustedHarvestURL))].map(url=>({url,source:'legacy-exact-set-batch'}))};
+      // A complete set result is definitive for this provider. An empty set
+      // result is not: API set naming can differ from TCGdex naming.
+      if(batch.some(row=>String(row.set?.name||'').toLowerCase()===set.name.toLowerCase()))return {configured:true,candidates:[]};
+    }
+  }
+  if(legacyBudget<=0)return {configured:false,reason:'budget-reached'};
+  legacyBudget--;legacyStats.requests++;
   const q=`number:"${phrase(card.localId)}" set.name:"${phrase(set.name)}"`;
   const url=`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=100&select=${encodeURIComponent('id,name,number,set,images')}`;
-  const headers=process.env.POKEMONTCG_API_KEY?{'X-Api-Key':process.env.POKEMONTCG_API_KEY}:{};
-  const data=await getJSON(url,'legacy',headers);
-  const entry=matchAlternativeCard({number:card.localId,englishName:english.name,englishSet:set.name,printedTotal:set.cardCount?.official},data?.data||[]);
+  const data=await getJSON(url,'legacy',legacyHeaders);
+  const entry=matchAlternativeCard(target,data?.data||[]);
   return {configured:true,candidates:entry?[...new Set([entry.small,entry.large].filter(trustedHarvestURL))].map(url=>({url,source:'legacy-exact-matched'})):[]};
 }
 const cardsById=new Map(cards.map(c=>[c.id,c]));
@@ -158,8 +204,10 @@ const selected=cards.filter(c=>cardShard(c.id,shards)===shard);
 const now=Date.now();
 const scrydexReady=!freeOnly&&Boolean(process.env.SCRYDEX_API_KEY&&process.env.SCRYDEX_TEAM_ID);
 const tasks=prioritizeHarvestTasks(selected,targetIndex,state.cards,{mode,maxCards,now,refreshMissing:flag('--refresh-missing'),scrydexReady,freeOnly});
+const taskSetCounts=new Map();
+for(const card of tasks){const setId=setForCard(card.id,[...setMap.values()]);if(setId)taskSetCounts.set(setId,(taskSetCounts.get(setId)||0)+1);}
 const resolved={...targetIndex};for(const [id,row] of Object.entries(state.cards))if(targetIds.has(id)&&row?.status==='found'&&trustedHarvestURL(row.url))resolved[id]={url:row.url,source:row.source,checkedAt:row.checkedAt};
-const progress={mode,scope:'fr-exact-ids',freeOnly,priority:'pending-then-due-retry',sourceLocales:LANGUAGES,totalCatalog:cards.length,selected:selected.length,originalIndex:Object.keys(targetIndex).length,migratedProviderStates:migrated,freeOnlyMigrated,planned:tasks.length,plannedPending:tasks.filter(c=>!state.cards[c.id]||state.cards[c.id]?.status==='pending').length,plannedRetries:tasks.filter(c=>state.cards[c.id]?.status==='retry').length,processed:0,found:0,retry:0,unavailableInCheckedSources:0,packed:0,skippedCached:0,errors:[],catalogErrors};
+const progress={mode,scope:'fr-exact-ids',freeOnly,priority:'pending-then-due-retry-then-weekly-free-recheck',sourceLocales:LANGUAGES,totalCatalog:cards.length,selected:selected.length,originalIndex:Object.keys(targetIndex).length,migratedProviderStates:migrated,freeOnlyMigrated,planned:tasks.length,plannedPending:tasks.filter(c=>!state.cards[c.id]||state.cards[c.id]?.status==='pending').length,plannedRetries:tasks.filter(c=>state.cards[c.id]?.status==='retry').length,plannedRechecks:tasks.filter(c=>state.cards[c.id]?.status==='unavailable-in-checked-sources').length,processed:0,found:0,retry:0,unavailableInCheckedSources:0,packed:0,skippedCached:0,errors:[],catalogErrors};
 const packed=Object.create(null);const reportRows=[];
 async function checkpoint(){state.updatedAt=stamped();await atomic(statePath,state);await atomic(join(output,'pokevault-index-enrichi.json'),{format:'pokevault-image-index-v1',exportedAt:stamped(),scope:'fr-exact-ids',images:{...targetIndex,...Object.fromEntries(Object.entries(state.cards).filter(([id,v])=>targetIds.has(id)&&v?.status==='found'&&trustedHarvestURL(v.url)).map(([id,v])=>[id,{url:v.url,source:v.source,checkedAt:v.checkedAt}]))}});}
 async function handle(card){
@@ -237,7 +285,7 @@ let n=0;try{
 }finally{await checkpoint();
   const unresolved=cards.filter(c=>!resolved[c.id]).map(c=>({id:c.id,status:state.cards[c.id]?.status||'pending',reason:state.cards[c.id]?.reason||'not-attempted',checkedAt:state.cards[c.id]?.checkedAt||null,sourcesTried:state.cards[c.id]?.sourcesTried||[],nextRetryAt:state.cards[c.id]?.nextRetryAt||null}));
   const statusCounts=Object.fromEntries(['pending','retry','needs-provider-access','unavailable-in-checked-sources'].map(s=>[s,unresolved.filter(x=>x.status===s).length]));
-  const report={format:'pokevault-harvest-report-v1',generatedAt:stamped(),...progress,statusCounts,freeSourcesExhausted:unresolved.filter(c=>c.reason==='free-sources-exhausted').length,stillUnindexed:unresolved.length,remainingInShard:selected.filter(c=>!resolved[c.id]&&(!state.cards[c.id]||['retry','needs-provider-access'].includes(state.cards[c.id]?.status))).length,coveragePercent:Math.round(10000*(cards.length-unresolved.length)/cards.length)/100,cardsNeedingAttention:reportRows};
+  const report={format:'pokevault-harvest-report-v1',generatedAt:stamped(),...progress,legacyRequestsUsed:legacyStats.requests,legacyBatchSets:legacyStats.batchSets,legacyCacheHits:legacyStats.cacheHits,statusCounts,freeSourcesExhausted:unresolved.filter(c=>c.reason==='free-sources-exhausted').length,stillUnindexed:unresolved.length,remainingInShard:selected.filter(c=>!resolved[c.id]&&(!state.cards[c.id]||['retry','needs-provider-access'].includes(state.cards[c.id]?.status))).length,coveragePercent:Math.round(10000*(cards.length-unresolved.length)/cards.length)/100,cardsNeedingAttention:reportRows};
   await atomic(join(output,'report.json'),report);
   await atomic(join(output,'missing-images-report.json'),{format:'pokevault-missing-images-v1',catalogueTotal:cards.length,verifiedOrIndexed:cards.length-unresolved.length,unresolved});
   const csv=['id;statut;raison;sources_testees;prochaine_tentative',...unresolved.map(c=>[c.id,c.status,c.reason,c.sourcesTried.join('|'),c.nextRetryAt?new Date(c.nextRetryAt).toISOString():''].join(';'))].join('\n');

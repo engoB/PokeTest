@@ -3,6 +3,9 @@ import {safeId,sniffImage} from './offline-core.mjs';
 // Exact IDs are shared across TCGdex locales; a foreign-language scan is preferable to no scan.
 export const LANGUAGES=['fr','en','de','es','it','pt','pt-br','ja','zh-tw','id','th'];
 export const IMAGE_HOSTS=new Set(['assets.tcgdex.net','images.pokemontcg.io','images.scrydex.com']);
+// An unsuccessful lookup is a snapshot of the free sources, not a permanent
+// verdict. Recheck it periodically without asking the user to click anything.
+export const FREE_RECHECK_INTERVAL_MS=7*24*3600_000;
 export function trustedHarvestURL(raw){
   try{if(typeof raw!=='string'||/(?:^|\/)(?:\.\.|(?:%2e){2})(?=\/|$)/i.test(raw))return null;const u=new URL(raw);if(u.protocol!=='https:'||u.username||u.password||!IMAGE_HOSTS.has(u.hostname)||u.port)return null;
     if(!/^\/[\w./%!-]+$/.test(u.pathname)||u.pathname.includes('..'))return null;
@@ -69,8 +72,7 @@ export function migrateAmbiguousProviderStates(cards){
   return changed;
 }
 // When only free sources are allowed, a missing Scrydex key must not remain
-// an action item. These cards have already exhausted the accessible sources
-// in the previous run; --refresh-missing can recheck them in the future.
+// an action item. The periodic free-source rescan handles these cards later.
 export function migrateFreeOnlyProviderStates(cards){
   let changed=0;
   for(const row of Object.values(cards||{})){
@@ -84,11 +86,11 @@ export function migrateFreeOnlyProviderStates(cards){
   return changed;
 }
 // New FR cards get the first opportunity to use the free per-run quota.
-// Previously failed cards follow in oldest-retry-first order; no paid provider
-// is needed to finish the first pass through the FR inventory.
-export function prioritizeHarvestTasks(selected,index,stateCards,{mode='resolve',maxCards=400,now=Date.now(),refreshMissing=false,scrydexReady=false,freeOnly=false}={}){
+// Previously failed cards follow in oldest-retry-first order; the exhausted
+// free-source group is automatically rechecked every seven days.
+export function prioritizeHarvestTasks(selected,index,stateCards,{mode='resolve',maxCards=400,now=Date.now(),refreshMissing=false,scrydexReady=false,freeOnly=false,recheckIntervalMs=FREE_RECHECK_INTERVAL_MS}={}){
   if(mode==='pack')return selected.filter(c=>Boolean(index[c.id]||trustedHarvestURL(stateCards[c.id]?.url))).slice(0,maxCards);
-  const pending=[],retry=[],provider=[],refresh=[];
+  const pending=[],retry=[],provider=[],scheduled=[],refresh=[];
   for(const card of selected){
     const row=stateCards[card.id];
     if(index[card.id]||(row?.status==='found'&&trustedHarvestURL(row.url)))continue;
@@ -97,10 +99,15 @@ export function prioritizeHarvestTasks(selected,index,stateCards,{mode='resolve'
       retry.push(card);continue;
     }
     if(row.status==='needs-provider-access'&&scrydexReady&&!freeOnly){provider.push(card);continue;}
+    if(freeOnly&&row.status==='unavailable-in-checked-sources'&&
+       (!Number.isFinite(row.checkedAt)||row.checkedAt<=0||row.checkedAt+recheckIntervalMs<=now)){
+      scheduled.push(card);continue;
+    }
     if(refreshMissing)refresh.push(card);
   }
   retry.sort((a,b)=>(stateCards[a.id]?.nextRetryAt||0)-(stateCards[b.id]?.nextRetryAt||0));
-  return [...pending,...retry,...provider,...refresh].slice(0,maxCards);
+  scheduled.sort((a,b)=>(stateCards[a.id]?.checkedAt||0)-(stateCards[b.id]?.checkedAt||0));
+  return [...pending,...retry,...provider,...scheduled,...refresh].slice(0,maxCards);
 }
 export function verifiedImage(bytes){
   if(!Buffer.isBuffer(bytes)||bytes.length>8_000_000)return null;

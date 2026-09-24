@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
-import {validIndex,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage,migrateAmbiguousProviderStates,migrateFreeOnlyProviderStates,prioritizeHarvestTasks} from '../scripts/harvest-core.mjs';
+import {validIndex,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage,migrateAmbiguousProviderStates,migrateFreeOnlyProviderStates,prioritizeHarvestTasks,FREE_RECHECK_INTERVAL_MS} from '../scripts/harvest-core.mjs';
 import {frenchTargetCatalogue} from '../scripts/catalog-core.mjs';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 test('image URL/index validation prevents unsafe host or traversal',()=>{
@@ -86,9 +86,9 @@ test('first pass prioritizes never-tried FR cards, then oldest due retries; no p
     'free-exhausted':{status:'unavailable-in-checked-sources',reason:'free-sources-exhausted'}
   };
   const ids=opts=>prioritizeHarvestTasks(cards,index,states,{mode:'resolve',maxCards:400,now:200,freeOnly:true,...opts}).map(c=>c.id);
-  assert.deepEqual(ids(),['pending-b','pending-a','retry-older','retry-newer']);
+  assert.deepEqual(ids(),['pending-b','pending-a','retry-older','retry-newer','free-exhausted']);
   assert.deepEqual(ids({maxCards:2}),['pending-b','pending-a']);
-  assert.deepEqual(ids({refreshMissing:true}),['pending-b','pending-a','retry-older','retry-newer','provider','retry-later','free-exhausted']);
+  assert.deepEqual(ids({refreshMissing:true}),['pending-b','pending-a','retry-older','retry-newer','free-exhausted','provider','retry-later']);
   assert.deepEqual(ids({freeOnly:false,scrydexReady:true}),['pending-b','pending-a','retry-older','retry-newer','provider']);
 });
 test('free-only resolves with free sources, never calls Scrydex, and records exhausted free checks',()=>{
@@ -109,6 +109,40 @@ test('free-only resolves with free sources, never calls Scrydex, and records exh
     assert.equal(report.freeSourcesExhausted,1);
     assert.equal(report.statusCounts['needs-provider-access'],0);
     assert.equal(report.statusCounts['unavailable-in-checked-sources'],1);
+  }finally{rmSync(tmp,{recursive:true,force:true});}
+});
+test('automatically revisits exhausted free sources after seven days, never before',()=>{
+  const now=Date.now();
+  const cards=['pending','retry','old-exhausted','new-exhausted'].map(id=>({id}));
+  const state={
+    retry:{status:'retry',nextRetryAt:now-1000},
+    'old-exhausted':{status:'unavailable-in-checked-sources',reason:'free-sources-exhausted',checkedAt:now-FREE_RECHECK_INTERVAL_MS-1000},
+    'new-exhausted':{status:'unavailable-in-checked-sources',reason:'free-sources-exhausted',checkedAt:now-FREE_RECHECK_INTERVAL_MS+1000}
+  };
+  const ids=prioritizeHarvestTasks(cards,{},state,{now,freeOnly:true}).map(c=>c.id);
+  assert.deepEqual(ids,['pending','retry','old-exhausted']);
+  assert.deepEqual(prioritizeHarvestTasks(cards,{},state,{now:now+2000,freeOnly:true}).map(c=>c.id),['pending','retry','old-exhausted','new-exhausted']);
+});
+test('free legacy API batches same-set cards in one call and verifies exact name/number',()=>{
+  const tmp=mkdtempSync(join(tmpdir(),'pv-auto-batch-'));
+  try{
+    const fixtures=join(tmp,'fixture'),cache=join(tmp,'cache'),output=join(tmp,'out');mkdirSync(fixtures,{recursive:true});
+    const fr=[{id:'base1-1',name:'Alakazam FR',localId:'001'},{id:'base1-2',name:'Florizarre FR',localId:'002'}];
+    const en=[{id:'base1-1',name:'Alakazam',localId:'001'},{id:'base1-2',name:'Venusaur',localId:'002'}];
+    const languages=['fr','en','de','es','it','pt','pt-br','ja','zh-tw','id','th'];
+    for(const lang of languages)writeFileSync(join(fixtures,`${lang}.json`),JSON.stringify(lang==='fr'?fr:lang==='en'?en:[]));
+    writeFileSync(join(fixtures,'sets.json'),JSON.stringify([{id:'base1',name:'Base',cardCount:{official:102}}]));
+    writeFileSync(join(fixtures,'index.json'),'{}');
+    const args=['--import',join(root,'tests/fixtures/mock-batch-network.mjs'),'scripts/harvest-images.mjs','--mode','resolve','--free-only','--index',join(fixtures,'index.json'),'--state',join(cache,'state.json'),'--cache-dir',cache,'--output',output,'--en-sets',join(fixtures,'sets.json'),'--legacy-budget','1','--max-cards','2'];
+    for(const lang of languages)args.push(`--${lang}-cards`,join(fixtures,`${lang}.json`));
+    execFileSync(process.execPath,args,{cwd:root,timeout:20000});
+    const state=JSON.parse(readFileSync(join(cache,'state.json')));
+    assert.equal(state.cards['base1-1'].source,'legacy-exact-set-batch');
+    assert.equal(state.cards['base1-2'].source,'legacy-exact-set-batch');
+    const report=JSON.parse(readFileSync(join(output,'report.json')));
+    assert.equal(report.found,2);assert.equal(report.legacyRequestsUsed,1);
+    assert.equal(report.legacyBatchSets,1);assert.equal(report.legacyCacheHits,1);
+    assert.ok(existsSync(join(cache,'legacy-sets','base1.json')));
   }finally{rmSync(tmp,{recursive:true,force:true});}
 });
 test('resumable pack uses actual verified image bytes, assembly rejects missing shard',()=>{

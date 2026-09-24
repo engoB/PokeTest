@@ -60,7 +60,7 @@ jobs:
             git fetch -q origin refs/heads/pokevault-image-data:refs/remotes/origin/pokevault-image-data || true
             git show refs/remotes/origin/pokevault-image-data:state.json > harvest-cache/state.json || rm -f harvest-cache/state.json
           fi
-      - name: Resolve unseen French IDs first - free sources only, then due retries
+      - name: Resolve all FR IDs automatically - free set batches and weekly retries
         env:
           POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }}
           MAX_CARDS: ${{ inputs.max_cards || 400 }}
@@ -69,7 +69,7 @@ jobs:
             --index inputs/pokevault-index-visuels.json \
             --state harvest-cache/state.json --cache-dir harvest-cache \
             --output harvest-output --max-cards "$MAX_CARDS" --legacy-budget 100 --free-only
-      - name: Generate FR-only unresolved research workbook (6 catalogues, no scraping)
+      - name: Publish optional diagnostic for still-unresolved FR IDs (no manual work required)
         if: success()
         run: |
           node scripts/image-research.mjs \
@@ -113,6 +113,7 @@ jobs:
             harvest-cache/en-sets.json
             harvest-cache/set-details/
             harvest-cache/details/
+            harvest-cache/legacy-sets/
           if-no-files-found: warn
           retention-days: 90
       - name: Publish enriched URLs and precise missing/retry audit (no artwork)

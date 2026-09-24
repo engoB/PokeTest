@@ -4,14 +4,15 @@
 import {readFile,writeFile,mkdir,copyFile,stat} from 'node:fs/promises';
 import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {validIndex,LANGUAGES,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage,migrateAmbiguousProviderStates} from './harvest-core.mjs';
+import {validIndex,LANGUAGES,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage,migrateAmbiguousProviderStates,migrateFreeOnlyProviderStates,prioritizeHarvestTasks} from './harvest-core.mjs';
 import {safeId} from './offline-core.mjs';
 import {frenchTargetCatalogue,setForCard} from './catalog-core.mjs';
 import {matchAlternativeCard} from '../core.mjs';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 const args=process.argv.slice(2),opt=k=>{const i=args.indexOf(k);return i<0?null:args[i+1];},flag=k=>args.includes(k);
-if(flag('--help')){console.log('node scripts/harvest-images.mjs --mode resolve|pack --index inputs/pokevault-index-visuels.json [--state .image-harvest-cache/state.json] [--fr-cards file --en-cards file] [--output harvest-output] [--max-cards 400] [--shard 0/16] [--no-network] [--refresh-missing]. Target = FR cards only; 11 locales remain image sources. Optional SCRYDEX_API_KEY + SCRYDEX_TEAM_ID, POKEMONTCG_API_KEY.');process.exit(0);}
+if(flag('--help')){console.log('node scripts/harvest-images.mjs --mode resolve|pack --index inputs/pokevault-index-visuels.json [--state .image-harvest-cache/state.json] [--fr-cards file --en-cards file] [--output harvest-output] [--max-cards 400] [--shard 0/16] [--no-network] [--refresh-missing] [--free-only]. Target = FR cards only; pending cards first, then due retries. --free-only disables Scrydex and reports cards exhausted in checked free sources.');process.exit(0);}
 const mode=opt('--mode')||'resolve';if(!['resolve','pack'].includes(mode))throw Error('Bad mode');
+const freeOnly=flag('--free-only');
 const output=resolve(opt('--output')||join(root,'harvest-output'));
 const cacheDir=resolve(opt('--cache-dir')||join(root,'.image-harvest-cache'));
 const statePath=resolve(opt('--state')||join(cacheDir,'state.json'));
@@ -30,6 +31,8 @@ const state=await load(statePath).catch(()=>({format:'pokevault-harvest-state-v1
 if(state.format!=='pokevault-harvest-state-v1'||!state.cards||typeof state.cards!=='object')throw Error('Bad state file');
 const migrated=migrateAmbiguousProviderStates(state.cards);
 if(migrated)console.log(`Requeued ${migrated} ambiguous v4.4 quota/provider results`);
+const freeOnlyMigrated=freeOnly?migrateFreeOnlyProviderStates(state.cards):0;
+if(freeOnlyMigrated)console.log(`Marked ${freeOnlyMigrated} previously checked cards as unresolved in free sources (Scrydex not required)`);
 await mkdir(cacheDir,{recursive:true});await mkdir(output,{recursive:true});
 const imageDir=join(output,'assets/offline/cards');if(mode==='pack')await mkdir(imageDir,{recursive:true});
 const imageCacheDir=join(cacheDir,'cards');await mkdir(imageCacheDir,{recursive:true});
@@ -128,6 +131,7 @@ async function getDetail(lang,id){
   if(detail?.id===id){await atomic(file,detail);return detail;}return null;
 }
 async function scrydex(id,english){
+  if(freeOnly)return {configured:false};
   if(!process.env.SCRYDEX_API_KEY||!process.env.SCRYDEX_TEAM_ID)return {configured:false};
   const headers={'X-Api-Key':process.env.SCRYDEX_API_KEY,'X-Team-ID':process.env.SCRYDEX_TEAM_ID};
   const result=await getJSON(`https://api.scrydex.com/pokemon/v1/cards/${encodeURIComponent(id)}`,'scrydex',headers);
@@ -152,12 +156,10 @@ async function legacy(id,english){
 const cardsById=new Map(cards.map(c=>[c.id,c]));
 const selected=cards.filter(c=>cardShard(c.id,shards)===shard);
 const now=Date.now();
-const scrydexReady=Boolean(process.env.SCRYDEX_API_KEY&&process.env.SCRYDEX_TEAM_ID);
-const tasks=selected.filter(c=>mode==='pack'?Boolean(index[c.id]||state.cards[c.id]?.url):(!index[c.id]&&!state.cards[c.id]?.url)&& (state.cards[c.id]?.status!=='unavailable-in-checked-sources'||flag('--refresh-missing')) && (state.cards[c.id]?.status!=='needs-provider-access'||scrydexReady||flag('--refresh-missing')) &&(
-  flag('--refresh-missing')||!state.cards[c.id]?.nextRetryAt||state.cards[c.id].nextRetryAt<=now
-)).slice(0,maxCards);
+const scrydexReady=!freeOnly&&Boolean(process.env.SCRYDEX_API_KEY&&process.env.SCRYDEX_TEAM_ID);
+const tasks=prioritizeHarvestTasks(selected,targetIndex,state.cards,{mode,maxCards,now,refreshMissing:flag('--refresh-missing'),scrydexReady,freeOnly});
 const resolved={...targetIndex};for(const [id,row] of Object.entries(state.cards))if(targetIds.has(id)&&row?.status==='found'&&trustedHarvestURL(row.url))resolved[id]={url:row.url,source:row.source,checkedAt:row.checkedAt};
-const progress={mode,scope:'fr-exact-ids',sourceLocales:LANGUAGES,totalCatalog:cards.length,selected:selected.length,originalIndex:Object.keys(targetIndex).length,migratedProviderStates:migrated,planned:tasks.length,processed:0,found:0,retry:0,unavailableInCheckedSources:0,packed:0,skippedCached:0,errors:[],catalogErrors};
+const progress={mode,scope:'fr-exact-ids',freeOnly,priority:'pending-then-due-retry',sourceLocales:LANGUAGES,totalCatalog:cards.length,selected:selected.length,originalIndex:Object.keys(targetIndex).length,migratedProviderStates:migrated,freeOnlyMigrated,planned:tasks.length,plannedPending:tasks.filter(c=>!state.cards[c.id]||state.cards[c.id]?.status==='pending').length,plannedRetries:tasks.filter(c=>state.cards[c.id]?.status==='retry').length,processed:0,found:0,retry:0,unavailableInCheckedSources:0,packed:0,skippedCached:0,errors:[],catalogErrors};
 const packed=Object.create(null);const reportRows=[];
 async function checkpoint(){state.updatedAt=stamped();await atomic(statePath,state);await atomic(join(output,'pokevault-index-enrichi.json'),{format:'pokevault-image-index-v1',exportedAt:stamped(),scope:'fr-exact-ids',images:{...targetIndex,...Object.fromEntries(Object.entries(state.cards).filter(([id,v])=>targetIds.has(id)&&v?.status==='found'&&trustedHarvestURL(v.url)).map(([id,v])=>[id,{url:v.url,source:v.source,checkedAt:v.checkedAt}]))}});}
 async function handle(card){
@@ -207,9 +209,11 @@ async function handle(card){
       }
     }catch(error){transient=true;progress.errors.push({id,source:`tcgdex-${lang}-detail`,error:String(error.message||error)});}
   }
-  try{const remote=await scrydex(id,catalogByLang.en.get(id));if(remote.configured){sourceList.push('scrydex-exact-id');if(remote.candidate){for(const candidate of [remote.candidate,...(remote.candidate.alternatives||[])])if(await tryCandidate(candidate))return;}}
-      else missingScrydex=true;
-  }catch(error){transient=true;progress.errors.push({id,source:'scrydex',error:String(error.message||error)});}
+  if(!freeOnly){
+    try{const remote=await scrydex(id,catalogByLang.en.get(id));if(remote.configured){sourceList.push('scrydex-exact-id');if(remote.candidate){for(const candidate of [remote.candidate,...(remote.candidate.alternatives||[])])if(await tryCandidate(candidate))return;}}
+        else missingScrydex=true;
+    }catch(error){transient=true;progress.errors.push({id,source:'scrydex',error:String(error.message||error)});}
+  }
   try{const remote=await legacy(id,catalogByLang.en.get(id));if(remote.configured){sourceList.push('legacy-strict-match');for(const candidate of remote.candidates||[])if(await tryCandidate(candidate))return;}
       else if(remote.reason==='budget-reached')legacyQuota=true;
       else legacyMetadataMissing=true;
@@ -221,7 +225,7 @@ async function handle(card){
   const delay=Math.min(48*3600_000,Math.max(3600_000,1800_000*2**Math.min(failures,7)));
   state.cards[id]={status,checkedAt:Date.now(),sourcesTried:[...new Set(sourceList)],failures,
     nextRetryAt:status==='retry'?Date.now()+delay:null,
-    reason:transient?'remote-temporary-error':legacyQuota?'legacy-quota-exhausted':missingScrydex?'scrydex-credentials-missing':legacyMetadataMissing?'no-verified-english-metadata':'no-valid-image-in-checked-sources'};
+    reason:transient?'remote-temporary-error':legacyQuota?'legacy-quota-exhausted':missingScrydex?'scrydex-credentials-missing':freeOnly&&status==='unavailable-in-checked-sources'?'free-sources-exhausted':legacyMetadataMissing?'no-verified-english-metadata':'no-valid-image-in-checked-sources'};
   if(status==='retry'||status==='needs-provider-access')progress.retry++;else progress.unavailableInCheckedSources++;
   reportRows.push({id,...state.cards[id]});
 }
@@ -233,7 +237,7 @@ let n=0;try{
 }finally{await checkpoint();
   const unresolved=cards.filter(c=>!resolved[c.id]).map(c=>({id:c.id,status:state.cards[c.id]?.status||'pending',reason:state.cards[c.id]?.reason||'not-attempted',checkedAt:state.cards[c.id]?.checkedAt||null,sourcesTried:state.cards[c.id]?.sourcesTried||[],nextRetryAt:state.cards[c.id]?.nextRetryAt||null}));
   const statusCounts=Object.fromEntries(['pending','retry','needs-provider-access','unavailable-in-checked-sources'].map(s=>[s,unresolved.filter(x=>x.status===s).length]));
-  const report={format:'pokevault-harvest-report-v1',generatedAt:stamped(),...progress,statusCounts,stillUnindexed:unresolved.length,remainingInShard:selected.filter(c=>!resolved[c.id]&&(!state.cards[c.id]||['retry','needs-provider-access'].includes(state.cards[c.id]?.status))).length,coveragePercent:Math.round(10000*(cards.length-unresolved.length)/cards.length)/100,cardsNeedingAttention:reportRows};
+  const report={format:'pokevault-harvest-report-v1',generatedAt:stamped(),...progress,statusCounts,freeSourcesExhausted:unresolved.filter(c=>c.reason==='free-sources-exhausted').length,stillUnindexed:unresolved.length,remainingInShard:selected.filter(c=>!resolved[c.id]&&(!state.cards[c.id]||['retry','needs-provider-access'].includes(state.cards[c.id]?.status))).length,coveragePercent:Math.round(10000*(cards.length-unresolved.length)/cards.length)/100,cardsNeedingAttention:reportRows};
   await atomic(join(output,'report.json'),report);
   await atomic(join(output,'missing-images-report.json'),{format:'pokevault-missing-images-v1',catalogueTotal:cards.length,verifiedOrIndexed:cards.length-unresolved.length,unresolved});
   const csv=['id;statut;raison;sources_testees;prochaine_tentative',...unresolved.map(c=>[c.id,c.status,c.reason,c.sourcesTried.join('|'),c.nextRetryAt?new Date(c.nextRetryAt).toISOString():''].join(';'))].join('\n');

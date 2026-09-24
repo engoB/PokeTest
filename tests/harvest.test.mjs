@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
-import {validIndex,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage,migrateAmbiguousProviderStates} from '../scripts/harvest-core.mjs';
+import {validIndex,cardShard,sourceCandidates,exactScrydexCard,classifyResult,trustedHarvestURL,verifiedImage,migrateAmbiguousProviderStates,migrateFreeOnlyProviderStates,prioritizeHarvestTasks} from '../scripts/harvest-core.mjs';
 import {frenchTargetCatalogue} from '../scripts/catalog-core.mjs';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 test('image URL/index validation prevents unsafe host or traversal',()=>{
@@ -61,6 +61,55 @@ test('old ambiguous quota/provider checkpoints are requeued exactly once',()=>{
   assert.equal(rows['base1-1'].status,'retry');assert.equal(rows['base1-1'].nextRetryAt,0);
   assert.equal(rows['base1-2'].status,'needs-provider-access');
   assert.equal(migrateAmbiguousProviderStates(rows),0);
+});
+test('free-only converts previous Scrydex blocks into an auditable free-source remainder',()=>{
+  const rows={
+    old:{status:'needs-provider-access',reason:'scrydex-credentials-missing',sourcesTried:['tcgdex-fr-exact-set-path','legacy-strict-match']},
+    quota:{status:'retry',reason:'legacy-quota-exhausted',nextRetryAt:123},
+    other:{status:'needs-provider-access',reason:'other-provider'}
+  };
+  assert.equal(migrateFreeOnlyProviderStates(rows),1);
+  assert.deepEqual({status:rows.old.status,reason:rows.old.reason,nextRetryAt:rows.old.nextRetryAt},
+    {status:'unavailable-in-checked-sources',reason:'free-sources-exhausted',nextRetryAt:null});
+  assert.equal(rows.quota.status,'retry');
+  assert.equal(rows.other.status,'needs-provider-access');
+  assert.equal(migrateFreeOnlyProviderStates(rows),0);
+});
+test('first pass prioritizes never-tried FR cards, then oldest due retries; no paid provider',()=>{
+  const cards=['retry-newer','provider','pending-b','retry-later','indexed','pending-a','retry-older','free-exhausted'].map(id=>({id}));
+  const index={indexed:{url:'https://assets.tcgdex.net/fr/base/base1/001/low.webp'}};
+  const states={
+    'retry-newer':{status:'retry',nextRetryAt:100},
+    provider:{status:'needs-provider-access',reason:'scrydex-credentials-missing'},
+    'retry-later':{status:'retry',nextRetryAt:900},
+    'retry-older':{status:'retry',nextRetryAt:10},
+    'free-exhausted':{status:'unavailable-in-checked-sources',reason:'free-sources-exhausted'}
+  };
+  const ids=opts=>prioritizeHarvestTasks(cards,index,states,{mode:'resolve',maxCards:400,now:200,freeOnly:true,...opts}).map(c=>c.id);
+  assert.deepEqual(ids(),['pending-b','pending-a','retry-older','retry-newer']);
+  assert.deepEqual(ids({maxCards:2}),['pending-b','pending-a']);
+  assert.deepEqual(ids({refreshMissing:true}),['pending-b','pending-a','retry-older','retry-newer','provider','retry-later','free-exhausted']);
+  assert.deepEqual(ids({freeOnly:false,scrydexReady:true}),['pending-b','pending-a','retry-older','retry-newer','provider']);
+});
+test('free-only resolves with free sources, never calls Scrydex, and records exhausted free checks',()=>{
+  const tmp=mkdtempSync(join(tmpdir(),'pv-free-only-'));
+  try{
+    const fixtures=join(tmp,'fixture'),cache=join(tmp,'cache'),output=join(tmp,'out');mkdirSync(fixtures,{recursive:true});
+    const fr=[{id:'base1-2',name:'French',localId:'002'}],en=[{id:'base1-2',name:'English',localId:'002'}];
+    const languages=['fr','en','de','es','it','pt','pt-br','ja','zh-tw','id','th'];
+    for(const lang of languages)writeFileSync(join(fixtures,`${lang}.json`),JSON.stringify(lang==='fr'?fr:lang==='en'?en:[]));
+    writeFileSync(join(fixtures,'sets.json'),JSON.stringify([{id:'base1',name:'Base'}]));
+    writeFileSync(join(fixtures,'index.json'),'{}');
+    const args=['--import',join(root,'tests/fixtures/mock-network.mjs'),'scripts/harvest-images.mjs','--mode','resolve','--free-only','--index',join(fixtures,'index.json'),'--state',join(cache,'state.json'),'--cache-dir',cache,'--output',output,'--en-sets',join(fixtures,'sets.json'),'--legacy-budget','1','--max-cards','1'];
+    for(const lang of languages)args.push(`--${lang}-cards`,join(fixtures,`${lang}.json`));
+    execFileSync(process.execPath,args,{cwd:root,timeout:20000,env:{...process.env,SCRYDEX_API_KEY:'unused-key',SCRYDEX_TEAM_ID:'unused-team'}});
+    const report=JSON.parse(readFileSync(join(output,'report.json')));
+    assert.equal(report.freeOnly,true);
+    assert.equal(report.plannedPending,1);
+    assert.equal(report.freeSourcesExhausted,1);
+    assert.equal(report.statusCounts['needs-provider-access'],0);
+    assert.equal(report.statusCounts['unavailable-in-checked-sources'],1);
+  }finally{rmSync(tmp,{recursive:true,force:true});}
 });
 test('resumable pack uses actual verified image bytes, assembly rejects missing shard',()=>{
   const tmp=mkdtempSync(join(tmpdir(),'pv-harvest-'));
@@ -204,7 +253,7 @@ test('two GitHub shard artifacts merge into a sealed pack; missing and corrupt s
     collect();assemble();
     let report=JSON.parse(readFileSync(join(dist,'assets/offline/images-assembly-report.json')));
     assert.equal(report.complete,false);assert.deepEqual(report.unresolvedIds,['base1-3']);
-    assert.equal(JSON.parse(readFileSync(join(dist,'assets/offline/images.json'))).mode,'sealed');
+    assert.equal(JSON.parse(readFileSync(join(dist,'assets/offline/images.json'))).mode,'partial');
     parts[1]['base1-3']={file:'./assets/offline/cards/base1-3.png',source:'fixture',bytes:png.length};
     const shard1=join(artifacts,'pokevault-image-shard-1');
     writeFileSync(join(shard1,'parts','images-part-1-of-2.json'),JSON.stringify({format:'pokevault-image-part-v1',shard:1,shards:2,images:parts[1]}));

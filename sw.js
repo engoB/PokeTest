@@ -1,7 +1,7 @@
 /* Versioned PWA shell; API and visited images remain available offline after first load. */
-const VERSION='pv-v4.4';
+const VERSION='pv-v4.6';
 const SHELL=`${VERSION}-shell`,DATA=`${VERSION}-data`,IMAGES=`${VERSION}-images`,PACK=`${VERSION}-offline-pack`;
-const APP_FILES=['./','./index.html','./app.bundle.js?v=4.4.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
+const APP_FILES=['./','./index.html','./app.bundle.js?v=4.6.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./inputs/cardmarket-links.json','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const shell=await caches.open(SHELL);
   await shell.addAll(APP_FILES);
@@ -23,7 +23,7 @@ self.addEventListener('install',event=>event.waitUntil((async()=>{
     }
     const precache=await fetch('./assets/offline/precache.json').then(r=>r.ok?r.json():[]).catch(()=>[]);
     if(Array.isArray(precache))for(const url of precache.slice(0,2000)){
-      if(typeof url!=='string'||!/^\.\/assets\/offline\/cards\/[\w.-]+\.(webp|png|jpg)$/.test(url))continue;
+      if(typeof url!=='string'||!/^\.\/assets\/offline\/cards\/(?:[\w.-]+|exu-!|exu-%253F)\.(webp|png|jpg)$/.test(url))continue;
       try{await pack.add(url);}catch{break;} // Stop on browser storage quota; do not block installation.
     }
   }catch{}

@@ -1,3 +1,5 @@
+> **v4.6 :** croix de recherche, lien d’achat Cardmarket (direct uniquement si URL vérifiée), rapport de recherche sur six catalogues et import local de scans privés. Voir [GUIDE-EXHAUSTIVITE-PRIVEE.md](GUIDE-EXHAUSTIVITE-PRIVEE.md).
+
 # PokéVault v4 — pack d’images natif optionnel
 
 Cette version conserve le correctif de démarrage v3.1 et ajoute le builder de visuels. Le ZIP livré contient le **code**, pas les illustrations protégées ; voir la section V4 en fin de fichier.

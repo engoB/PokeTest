@@ -36,7 +36,7 @@ const knownIds=new Set(catalog.map(c=>c.id));const unresolved=catalog.filter(c=>
 const orphanImageIds=Object.keys(entries).filter(id=>!knownIds.has(id));
 const report={generatedAt:new Date().toISOString(),shards,totalImages:Object.keys(entries).length,catalogueCount:catalog.length,unresolvedIds:unresolved,orphanImageIds,damagedFiles:errors,verifiedFiles:Object.keys(entries).length,complete:catalog.length>0&&!unresolved.length&&!errors.length};
 await mkdir(join(dir,'assets/offline'),{recursive:true});
-await writeFile(join(dir,'assets/offline/images.json'),JSON.stringify({version:1,mode:catalog.length?'sealed':'unverified',generatedAt:report.generatedAt,total:catalog.length||Object.keys(entries).length,images:entries}));
+await writeFile(join(dir,'assets/offline/images.json'),JSON.stringify({version:1,mode:report.complete?'sealed':'partial',generatedAt:report.generatedAt,total:catalog.length||Object.keys(entries).length,images:entries}));
 await writeFile(join(dir,'assets/offline/precache.json'),'[]');
 await writeFile(join(dir,'assets/offline/images-assembly-report.json'),JSON.stringify(report,null,2));
 console.log(`Images physically verified: ${report.verifiedFiles}, unknown/missing in catalog: ${report.unresolvedIds.length}, damaged: ${errors.length}. Complete: ${report.complete}.`);

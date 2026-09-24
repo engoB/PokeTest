@@ -68,6 +68,40 @@ export function migrateAmbiguousProviderStates(cards){
   }
   return changed;
 }
+// When only free sources are allowed, a missing Scrydex key must not remain
+// an action item. These cards have already exhausted the accessible sources
+// in the previous run; --refresh-missing can recheck them in the future.
+export function migrateFreeOnlyProviderStates(cards){
+  let changed=0;
+  for(const row of Object.values(cards||{})){
+    if(row?.status==='needs-provider-access'&&row.reason==='scrydex-credentials-missing'){
+      row.status='unavailable-in-checked-sources';
+      row.reason='free-sources-exhausted';
+      row.nextRetryAt=null;
+      changed++;
+    }
+  }
+  return changed;
+}
+// New FR cards get the first opportunity to use the free per-run quota.
+// Previously failed cards follow in oldest-retry-first order; no paid provider
+// is needed to finish the first pass through the FR inventory.
+export function prioritizeHarvestTasks(selected,index,stateCards,{mode='resolve',maxCards=400,now=Date.now(),refreshMissing=false,scrydexReady=false,freeOnly=false}={}){
+  if(mode==='pack')return selected.filter(c=>Boolean(index[c.id]||trustedHarvestURL(stateCards[c.id]?.url))).slice(0,maxCards);
+  const pending=[],retry=[],provider=[],refresh=[];
+  for(const card of selected){
+    const row=stateCards[card.id];
+    if(index[card.id]||(row?.status==='found'&&trustedHarvestURL(row.url)))continue;
+    if(!row||row.status==='pending'){pending.push(card);continue;}
+    if(row.status==='retry'&&(!row.nextRetryAt||row.nextRetryAt<=now)){
+      retry.push(card);continue;
+    }
+    if(row.status==='needs-provider-access'&&scrydexReady&&!freeOnly){provider.push(card);continue;}
+    if(refreshMissing)refresh.push(card);
+  }
+  retry.sort((a,b)=>(stateCards[a.id]?.nextRetryAt||0)-(stateCards[b.id]?.nextRetryAt||0));
+  return [...pending,...retry,...provider,...refresh].slice(0,maxCards);
+}
 export function verifiedImage(bytes){
   if(!Buffer.isBuffer(bytes)||bytes.length>8_000_000)return null;
   const ext=sniffImage(bytes);if(!ext)return null;

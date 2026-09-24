@@ -1,6 +1,6 @@
 import {
   normalize, escapeHtml, numeric, parsePrice, formatEuro, readCollection, mergeCollections,
-  imageUrls, trustedImageUrl, matchAlternativeCard, cardMatchesType, sortCards, priceCoverage, PRICE_TTL
+  imageUrls, trustedImageUrl, matchAlternativeCard, cardMatchesType, sortCards, priceCoverage, PRICE_TTL, cardmarketPurchaseLink, imageResearchLinks, safeCardId, safeCardmarketProductUrl
 } from './core.mjs';
 import {openCache,loadCache,putCache,deleteCache} from './db.mjs';
 import {windowRows} from './virtual-grid.mjs';
@@ -15,7 +15,7 @@ const $=id=>document.getElementById(id);
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state={
   allSets:[],allCards:[],cards:[],catalogStatus:'loading',cardIndex:new Map(),selectedSet:'all',status:'all',type:'all',sort:'number',
-  layout:'comfortable',collection:{},prices:{},db:null,dirtyPrices:new Set(),details:new Map(),pendingDetails:new Map(),
+  layout:'comfortable',collection:{},prices:{},marketLinks:new Map(),db:null,dirtyPrices:new Set(),details:new Map(),pendingDetails:new Map(),
   imageRecords:new Map(),imageExtras:new Map(),imageFailures:new Map(),imageRetryAt:new Map(),imageRetryCount:new Map(),pendingFallback:new Map(),english:new Map(),
   tileCache:new Map(),imageProviderErrors:new Set(),imageTransient:new Map(),imageScanToken:0,imageScanning:false,imagePaused:false,imageScanScope:[],imageScanLimit:0,
   pendingEnglish:new Map(),imageCoverageTimer:0,imageAutoTimer:0,
@@ -45,7 +45,7 @@ function enqueue(task,priority=false){return new Promise((resolve,reject)=>{cons
 function pumpQueue(){while(state.running<3&&state.queue.length){const job=state.queue.shift();state.running++;Promise.resolve().then(job.task).then(job.resolve,job.reject).finally(()=>{state.running--;pumpQueue();});}}
 function detailShard(id){let sum=0;for(const c of id)sum=(sum*31+c.charCodeAt(0))>>>0;return sum%32;}
 async function localCardDetail(id){
-  if(!offlinePack.detailsManifest||!/^[A-Za-z0-9_.-]{1,110}$/.test(id))return null;
+  if(!offlinePack.detailsManifest||!safeCardId(id))return null;
   const shard=String(detailShard(id)).padStart(2,'0');
   if(!offlinePack.detailShards.has(shard)){
     const task=fetch(`${OFFLINE_ROOT}details/${shard}.json`).then(r=>r.ok?r.json():null).catch(()=>null);
@@ -86,7 +86,7 @@ async function loadOfflinePack(){
   if(manifest?.version!==1||!manifest.images||typeof manifest.images!=='object')return;
   offlinePack.sealed=manifest.mode==='sealed';
   for(const [id,entry] of Object.entries(manifest.images)){
-    if(!/^[A-Za-z0-9_.-]{1,110}$/.test(id)||['__proto__','prototype','constructor'].includes(id)||!entry?.file||entry.file!==`./assets/offline/cards/${id}.${entry.file.split('.').pop()}`||!/\.(webp|png|jpg)$/.test(entry.file))continue;
+    if(!safeCardId(id)||!entry?.file||entry.file!==`./assets/offline/cards/${encodeURIComponent(id)}.${entry.file.split('.').pop()}`||!/\.(webp|png|jpg)$/.test(entry.file))continue;
     offlinePack.images[id]=entry;
     state.imageRecords.set(id,{source:'bundled',url:entry.file,checkedAt:Date.now(),verificationVersion:4});
   }
@@ -101,7 +101,7 @@ async function loadOfflinePack(){
   if(detailsManifest.status==='fulfilled'&&detailsManifest.value?.format==='pokevault-catalogue-manifest-v1')offlinePack.detailsManifest=detailsManifest.value;
   if(!offlinePack.sealed&&index.status==='fulfilled'&&index.value?.format==='pokevault-image-index-v1'){
     for(const [id,entry] of Object.entries(index.value.images||{})){
-      if(!/^[A-Za-z0-9_.-]{1,110}$/.test(id)||offlinePack.images[id]||!trustedImageUrl(entry?.url)||!Number.isFinite(entry?.checkedAt))continue;
+      if(!safeCardId(id)||offlinePack.images[id]||!trustedImageUrl(entry?.url)||!Number.isFinite(entry?.checkedAt))continue;
       state.imageRecords.set(id,{url:entry.url,source:entry.source||'previously-verified',checkedAt:entry.checkedAt});
     }
   }
@@ -610,7 +610,7 @@ function addExtra(id,entry){
   state.imageExtras.set(id,extras);
 }
 function candidateUrls(entry,quality){
-  if(entry?.source==='bundled'&&/^\.\/assets\/offline\/cards\/[A-Za-z0-9_.-]+\.(webp|png|jpg)$/.test(entry.url))return [{url:entry.url,entry}];
+  if(entry?.source==='bundled'&&/^\.\/assets\/offline\/cards\/(?:[A-Za-z0-9_.-]+|exu-!|exu-%253F)\.(webp|png|jpg)$/.test(entry.url))return [{url:entry.url,entry}];
   const verified=trustedImageUrl(entry.url);
   if(entry.base){
     const normal=imageUrls(entry.base,quality);
@@ -814,6 +814,30 @@ function updateImageSource(id){
 }
 
 function updateDialogQuantity(id){const quantity=state.collection[id]||0;$('dialog-quantity').textContent=`${quantity} exemplaire${quantity>1?'s':''}`;$('dialog-minus').disabled=quantity===0;}
+async function loadReviewedMarketLinks(){
+  try{
+    const response=await fetch('./inputs/cardmarket-links.json',{cache:'no-store'});if(!response.ok)return;
+    const data=await response.json();if(data?.format!=='pokevault-cardmarket-links-v1'||!data.links||typeof data.links!=='object')return;
+    for(const [id,url] of Object.entries(data.links)){const clean=safeCardmarketProductUrl(url);if(safeCardId(id)&&clean)state.marketLinks.set(id,clean);}
+    if(state.inspected)updateDialogBuy(state.inspected,state.details.get(state.inspected));
+  }catch{} // Optional mapping; a search link is always available.
+}
+function updateDialogBuy(id,detail=null){
+  const card=state.cardIndex.get(id);if(!card)return;
+  const set=state.allSets.find(s=>id.startsWith(`${s.id}-`));
+  const link=cardmarketPurchaseLink(card,detail,set?.name||'',state.marketLinks.get(id));
+  const a=$('dialog-buy');a.href=link.url;
+  a.textContent=link.direct?'Voir cette carte sur Cardmarket ↗':'Rechercher cette carte sur Cardmarket ↗';
+  $('dialog-buy-note').textContent=link.direct?'Fiche du produit : vérifiez la variante, la langue, l’état et le prix affiché.':'Recherche par nom, extension et numéro : vérifiez la bonne édition avant d’acheter.';
+}
+function updateResearchLinks(id,detail=null){
+  const card=state.cardIndex.get(id);if(!card)return;
+  const set=state.allSets.find(s=>id.startsWith(`${s.id}-`));
+  const target=$('dialog-research-links');target.replaceChildren();
+  for(const source of imageResearchLinks(card,detail?.set?.name||set?.name||'',state.english.get(id)?.name||'')){
+    const a=document.createElement('a');a.href=source.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=`${source.name} ↗`;target.append(a);
+  }
+}
 function updateDialogPrice(id){
   const p=state.prices[id];$('dialog-price').textContent=Number.isFinite(p?.trend)?formatEuro(p.trend):'Non cotée';
   $('dialog-avg').textContent=formatEuro(p?.avg30);$('dialog-low').textContent=formatEuro(p?.low);
@@ -823,7 +847,7 @@ async function openDialog(id){
   const card=state.cardIndex.get(id);if(!card)return;
   state.inspected=id;$('retry-image').hidden=offlinePack.sealed;$('dialog-title').textContent=card.name;
   $('dialog-subtitle').textContent=`${state.allSets.find(s=>s.id===id.split('-')[0])?.name||card.set?.name||'Carte Pokémon'} · № ${card.localId}`;
-  $('dialog-rarity').textContent=card.rarity||'Carte de collection';updateDialogQuantity(id);updateDialogPrice(id);updateImageSource(id);
+  $('dialog-rarity').textContent=card.rarity||'Carte de collection';updateDialogQuantity(id);updateDialogPrice(id);updateDialogBuy(id);updateResearchLinks(id);$('dialog-research-links').hidden=true;$('research-toggle').setAttribute('aria-expanded','false');updateImageSource(id);
   const img=$('dialog-image');img.__tried=new Set();img.__resolving=false;img.classList.remove('is-loaded');img.hidden=true;
   $('card-dialog').hidden=false;document.body.style.overflow='hidden';$('dialog-close').focus();
   if(!nextImage(img,id))findFallbackForElement(img,id);
@@ -831,7 +855,7 @@ async function openDialog(id){
     const detail=await requestDetail(id,true);if(state.inspected!==id)return;
     $('dialog-title').textContent=detail.name||card.name;
     $('dialog-subtitle').textContent=`${detail.set?.name||'Carte Pokémon'} · № ${detail.localId||card.localId}`;
-    $('dialog-rarity').textContent=detail.rarity||'Carte de collection';updateDialogPrice(id);
+    $('dialog-rarity').textContent=detail.rarity||'Carte de collection';updateDialogPrice(id);updateDialogBuy(id,detail);updateResearchLinks(id,detail);
   }catch{if(state.inspected===id)showToast('Fiche détaillée indisponible hors connexion.');}
 }
 function closeDialog(){state.inspected=null;$('card-dialog').hidden=true;document.body.style.overflow='';}
@@ -847,9 +871,11 @@ function switchTab(tab){
   if(!cards)closeSidebar();else renderViewport(true);updateScrollTools();
 }
 function filtersChanged(){cancelScan();cancelImageScan();state.pendingResort=false;refreshResults();scrollCatalog();startAutomaticScan();startAutomaticImageScan();}
+function updateSearchClear(id){const input=$(id),button=$(`${id}-clear`);if(button)button.hidden=!input.value;}
+function clearSearch(id){const input=$(id);input.value='';updateSearchClear(id);input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();}
 function resetFilters(){
   if($('clear-filters').dataset.action==='retry'){delete $('clear-filters').dataset.action;loadCatalog();return;}
-  $('card-search').value='';$('sort-select').value='number';$('type-select').value='all';state.sort='number';state.type='all';setStatus('all');
+  $('card-search').value='';updateSearchClear('card-search');$('sort-select').value='number';$('type-select').value='all';state.sort='number';state.type='all';setStatus('all');
 }
 function exportCollection(){
   const data={format:'pokevault-collection',version:1,exportedAt:new Date().toISOString(),collection:state.collection};
@@ -889,10 +915,10 @@ function registerSW(){if('serviceWorker'in navigator&&(location.protocol==='http
 
 function bindEvents(){
   $('sidebar-open').addEventListener('click',openSidebar);$('sidebar-close').addEventListener('click',closeSidebar);$('sidebar-scrim').addEventListener('click',closeSidebar);
-  $('set-search').addEventListener('input',renderSets);
+  $('set-search').addEventListener('input',()=>{updateSearchClear('set-search');renderSets();});$('set-search-clear').addEventListener('click',()=>clearSearch('set-search'));
   $('sets-list').addEventListener('click',event=>{const btn=event.target.closest('[data-set]');if(btn)selectSet(btn.dataset.set);});
   $('all-sets').addEventListener('click',()=>selectSet('all'));
-  let searchTimer;$('card-search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(filtersChanged,150);});
+  let searchTimer;$('card-search').addEventListener('input',()=>{updateSearchClear('card-search');clearTimeout(searchTimer);searchTimer=setTimeout(filtersChanged,150);});$('card-search-clear').addEventListener('click',()=>{clearTimeout(searchTimer);clearSearch('card-search');});
   $('sort-select').addEventListener('change',event=>{state.sort=event.target.value;filtersChanged();});
   $('type-select').addEventListener('change',event=>{state.type=event.target.value;filtersChanged();});
   $('status-filters').addEventListener('click',event=>{const btn=event.target.closest('[data-status]');if(btn)setStatus(btn.dataset.status);});
@@ -903,7 +929,7 @@ function bindEvents(){
   $('clear-filters').addEventListener('click',resetFilters);
   $('cards-grid').addEventListener('click',event=>{const btn=event.target.closest('[data-action]');if(!btn)return;const id=btn.dataset.id;if(btn.dataset.action==='open')openDialog(id);else changeQuantity(id,btn.dataset.action==='plus'?1:-1);});
   $('tab-cards').addEventListener('click',()=>switchTab('cards'));$('tab-guide').addEventListener('click',()=>switchTab('guide'));
-  $('dialog-close').addEventListener('click',closeDialog);
+  $('dialog-close').addEventListener('click',closeDialog);$('research-toggle').addEventListener('click',()=>{const target=$('dialog-research-links');target.hidden=!target.hidden;$('research-toggle').setAttribute('aria-expanded',String(!target.hidden));});
   $('card-dialog').addEventListener('click',event=>{if(event.target.id==='card-dialog')closeDialog();});
   $('dialog-image').addEventListener('load',event=>onImageLoad(event.target));
   $('dialog-image').addEventListener('error',event=>onImageError(event.target));
@@ -925,7 +951,7 @@ function bindEvents(){
 }
 bindEvents();networkStatus();updateSummary();registerSW();
 window.__pvBooted=true;
-loadOfflinePack().then(()=>Promise.allSettled([hydrateCache(),loadCatalog()])).then(results=>{
+loadOfflinePack().then(()=>Promise.allSettled([hydrateCache(),loadCatalog(),loadReviewedMarketLinks()])).then(results=>{
   if(results.some(result=>result.status==='rejected')){
     const errors=results.filter(result=>result.status==='rejected').map(result=>result.reason?.message||'Erreur inconnue');
     console.error('PokéVault initialisation',...errors);

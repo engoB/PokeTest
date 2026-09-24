@@ -76,3 +76,11 @@
 @media(prefers-reduced-motion:reduce){.card-open img,.dialog-image-holder img,.card-ghost{transition:none!important}}
 
 .virtual-spacer,.cards-grid{overflow-anchor:none}
+
+/* Explicit search clear controls: visible and keyboard-accessible on all browsers. */
+.set-search-wrap{position:relative}.set-search-wrap input{padding-right:2.75rem}.search-wrap input{padding-right:2.8rem}
+.search-clear{position:absolute;right:.5rem;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:32px;height:32px;border:1px solid #ffffff35;border-radius:50%;background:#25313a;color:var(--text);font-size:1.25rem;line-height:1;z-index:1}
+.search-clear:hover{background:#365548;color:var(--accent)}.search-clear[hidden]{display:none!important}
+.search-wrap input::-webkit-search-cancel-button,.set-search-wrap input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
+.marketplace-link{display:inline-flex;justify-content:center;align-items:center;text-align:center;text-decoration:none;min-height:42px;margin-top:.2rem}
+.price-panel .marketplace-link{font-size:.83rem}.research-panel{display:flex;flex-direction:column;gap:.55rem}.research-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.research-links[hidden]{display:none!important}.research-links a{color:var(--accent);font-size:.78rem;border:1px solid var(--outline);padding:.65rem;border-radius:9px;text-decoration:none}.research-links a:hover{background:#ffffff12}

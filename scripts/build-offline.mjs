@@ -114,7 +114,7 @@ async function worker(){
 await Promise.all(Array.from({length:5},()=>worker()));
 await writeFile(join(output,'assets/offline/catalog-fr.json'),JSON.stringify(catalog));
 await writeFile(join(output,'assets/offline/sets-fr.json'),JSON.stringify(sets));
-await writeFile(join(output,'assets/offline/images.json'),JSON.stringify({version:1,mode:'sealed',generatedAt:new Date().toISOString(),total:chosen.length,images:results}));
+await writeFile(join(output,'assets/offline/images.json'),JSON.stringify({version:1,mode:Object.keys(results).length===chosen.length&&chosen.length===catalog.length?'sealed':'partial',generatedAt:new Date().toISOString(),total:chosen.length,images:results}));
 await writeFile(join(output,'assets/offline/precache.json'),JSON.stringify(Object.values(results).slice(0,precacheLimit).map(x=>x.file)));
 const report={total:chosen.length,packed:Object.keys(results).length,missing:misses.length,missingIds:misses,errors,scope:ownedIds?'owned':'catalog',generatedAt:new Date().toISOString()};
 await writeFile(join(output,'assets/offline/report.json'),JSON.stringify(report,null,2));

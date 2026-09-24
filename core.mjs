@@ -113,3 +113,35 @@ export function priceCoverage(cards, prices, now=Date.now()) {
   }
   return {total:cards.length,checked,quoted,missing,remaining:cards.length-checked};
 }
+
+// Direct marketplace links are used ONLY when supplied by the card's source.
+// Otherwise show a labelled search, never an unverified product page.
+export function safeCardmarketProductUrl(raw){
+  try{const u=new URL(raw);if(u.protocol!=='https:'||!['www.cardmarket.com','cardmarket.com'].includes(u.hostname)||u.username||u.password||u.port||!/^\/(?:fr|en|de|es|it)\/Pokemon\/Products\/Singles\//.test(u.pathname))return null;return u.href;}catch{return null;}
+}
+export function cardmarketPurchaseLink(card,detail=null,setName='',reviewedUrl=null){
+  const sources=[reviewedUrl,detail?.pricing?.cardmarket?.url,detail?.cardmarket?.url,detail?.cardmarket?.productUrl,detail?.links?.cardmarket,card?.pricing?.cardmarket?.url,card?.cardmarket?.url];
+  for(const raw of sources){const url=safeCardmarketProductUrl(raw);if(url)return {url,direct:true};}
+  const name=String(detail?.name||card?.name||'').trim();
+  const number=String(detail?.localId||card?.localId||'').trim();
+  const set=String(detail?.set?.name||setName||card?.set?.name||'').trim();
+  const query=[name,set,number].filter(Boolean).join(' ');
+  return {url:`https://www.cardmarket.com/fr/Pokemon/Products/Search?searchString=${encodeURIComponent(query)}`,direct:false};
+}
+export const IMAGE_RESEARCH_SOURCES=Object.freeze([
+  {key:'pkmncards',name:'PkmnCards',domain:'pkmncards.com'},
+  {key:'pokecardex',name:'Pokécardex',domain:'pokecardex.com'},
+  {key:'bulbapedia',name:'Bulbapedia',domain:'bulbapedia.bulbagarden.net'},
+  {key:'tcgcollector',name:'TCG Collector',domain:'tcgcollector.com'},
+  {key:'pokellector',name:'Pokélector',domain:'pokellector.com'},
+  {key:'limitless',name:'Limitless TCG',domain:'limitlesstcg.com'}
+]);
+export function imageResearchLinks(card,setName='',englishName=''){
+  const name=String(card?.name||'').slice(0,100);const number=String(card?.localId||'').slice(0,30);const set=String(setName||card?.set?.name||'').slice(0,100);
+  return IMAGE_RESEARCH_SOURCES.map(source=>{
+    const title=['pkmncards','bulbapedia','pokellector','limitless'].includes(source.key)&&englishName?englishName:name;
+    const q=`site:${source.domain} ${[title,number,set].filter(Boolean).join(' ')}`;
+    return {...source,url:`https://www.google.com/search?q=${encodeURIComponent(q)}`};
+  });
+}
+export function safeCardId(id){return typeof id==='string'&&(/^[A-Za-z0-9_.-]{1,110}$/.test(id)||id==='exu-!'||id==='exu-%3F')&&!['__proto__','prototype','constructor','.','..'].includes(id);}

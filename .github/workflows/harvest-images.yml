@@ -60,7 +60,7 @@ jobs:
             git fetch -q origin refs/heads/pokevault-image-data:refs/remotes/origin/pokevault-image-data || true
             git show refs/remotes/origin/pokevault-image-data:state.json > harvest-cache/state.json || rm -f harvest-cache/state.json
           fi
-      - name: Resolve next batch - exact ID, 11 locales, strict fallback, rate-limit backoff
+      - name: Resolve next 400 French card IDs - 11 image locales, strict fallback, quota backoff
         env:
           SCRYDEX_API_KEY: ${{ secrets.SCRYDEX_API_KEY }}
           SCRYDEX_TEAM_ID: ${{ secrets.SCRYDEX_TEAM_ID }}
@@ -189,9 +189,9 @@ jobs:
           pattern: pokevault-image-shard-*
           path: artifacts
           merge-multiple: false
-      - name: Build complete card inventory and assemble local-image manifest
+      - name: Build FR-only card inventory and assemble local-image manifest
         run: |
-          node scripts/build-full-catalog.mjs --inventory-only \
+          node scripts/build-full-catalog.mjs --inventory-only --fr-only \
             --index inputs/pokevault-index-visuels.json --output dist
           node scripts/collect-image-shards.mjs --artifacts artifacts --dist dist --shards 16
           node scripts/assemble-image-pack.mjs --dir dist --shards 16

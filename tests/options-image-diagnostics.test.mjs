@@ -13,6 +13,6 @@ test('image sync diagnostics are only inside the Options panel, not the catalog'
  assert.match(options,/<details id="image-diagnostics"/);
  assert.match(options,/Synchronisation automatique/);
  assert.match(read('style.css'),/\.options-panel\{width:min\(470px/);
- assert.match(read('sw.js'),/pv-v5\.0/);
+ assert.match(read('sw.js'),/pv-v5\.1/);
  assert.doesNotMatch(read('style.css'),/\.pv-prices-off \.price-coverage,/);
 });

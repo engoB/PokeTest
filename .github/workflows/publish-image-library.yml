@@ -1,19 +1,23 @@
-name: Publish owned image library
+name: Publish images to GitHub Pages (free)
 on:
   workflow_dispatch:
     inputs:
       pack_run_id:
-        description: 'Successful 16-shard pack workflow run ID'
+        description: 'Successful 16-shard image pack workflow run ID'
         required: true
         type: string
       rights_confirmed:
-        description: 'I have verified public redistribution rights for all included scans'
+        description: 'I have verified PUBLIC REDISTRIBUTION rights for every image in this pack'
         required: true
         type: boolean
         default: false
 permissions:
-  contents: read
+  contents: write
   actions: read
+  pages: write
+concurrency:
+  group: pokevault-github-image-publication
+  cancel-in-progress: false
 jobs:
   publish:
     if: inputs.rights_confirmed == true
@@ -21,42 +25,73 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Download approved image shards
+      - name: Verify the selected pack run and download its 16 image shards
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.pack_run_id }}
-        run: |
-          mkdir -p artifacts
-          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'pokevault-image-shard-*' --dir artifacts
-      - name: Verify images and build immutable library
-        run: |
-          node scripts/collect-image-shards.mjs --artifacts artifacts --dist dist --shards 16
-          node scripts/assemble-image-pack.mjs --dir dist --shards 16
-          node scripts/publish-image-library.mjs --dir dist --out image-library-public --rights-confirmed
-      - name: Upload images first, publish manifest last
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.PV_IMAGE_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.PV_IMAGE_SECRET_KEY }}
-          AWS_DEFAULT_REGION: auto
-          S3_ENDPOINT: ${{ vars.PV_IMAGE_S3_ENDPOINT }}
-          S3_BUCKET: ${{ vars.PV_IMAGE_BUCKET }}
+        shell: bash
         run: |
           set -euo pipefail
-          : "${AWS_ACCESS_KEY_ID:?Missing PV_IMAGE_ACCESS_KEY}"
-          : "${AWS_SECRET_ACCESS_KEY:?Missing PV_IMAGE_SECRET_KEY}"
-          : "${S3_ENDPOINT:?Missing PV_IMAGE_S3_ENDPOINT}"
-          : "${S3_BUCKET:?Missing PV_IMAGE_BUCKET}"
-          aws s3 sync image-library-public/cards "s3://$S3_BUCKET/cards" --endpoint-url "$S3_ENDPOINT" --no-progress --only-show-errors
-          aws s3 cp image-library-public/manifest.json "s3://$S3_BUCKET/manifest.json" --endpoint-url "$S3_ENDPOINT" --content-type application/json --cache-control 'public,max-age=60' --only-show-errors
-      - name: Preserve release manifest and audit
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo 'Invalid run ID'; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            --jq 'select(.conclusion == "success" and (.path | contains("harvest-images.yml"))) | .id' | grep -qx "$RUN_ID"
+          mkdir -p artifacts
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'pokevault-image-shard-*' --dir artifacts
+      - name: Validate every shard and assemble the source pack
+        run: |
+          set -euo pipefail
+          node scripts/collect-image-shards.mjs --artifacts artifacts --dist dist --shards 16
+          node scripts/assemble-image-pack.mjs --dir dist --shards 16
+      - name: Verify application and publisher tests before committing images
+        run: npm run check
+      - name: Commit authorized images in bounded Git batches
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout -B main origin/main
+          git config user.name 'pokevault-images[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          published=0
+          # 32 MiB per commit; 650 MiB absolute library cap, below the Pages 1 GiB site limit.
+          for batch in $(seq 1 25); do
+            node scripts/publish-image-library.mjs --dir dist --out assets/library \
+              --max-new-files 1500 --max-new-bytes 33554432 \
+              --max-file-bytes 122880 --max-total-bytes 681574400 \
+              --report dist/library-publish-report.json --rights-confirmed
+            added=$(node -p "require('./dist/library-publish-report.json').added")
+            if [ "$added" -eq 0 ]; then break; fi
+            git add assets/library/manifest.json assets/library/cards
+            git commit -m "images: add authorized GitHub Pages artwork batch $batch"
+            git pull --rebase origin main
+            git push origin HEAD:main
+            published=$((published+added))
+          done
+          echo "published=$published" >> "$GITHUB_OUTPUT"
+          echo "Authorized image files added: $published"
+      - name: Request a Pages rebuild after the final manifest is committed
+        if: steps.publish.outputs.published != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          # GITHUB_TOKEN pushes do not trigger GitHub's default Pages build.
+          # Request one build after the last batch; a normal push is the fallback.
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" ||
+            echo "::warning::Images committed, but Pages rebuild was unavailable. Push a normal commit to main to publish the files."
+      - name: Keep the publication audit
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pokevault-owned-library-release
+          name: pokevault-github-library-audit
           path: |
-            image-library-public/manifest.json
+            dist/library-publish-report.json
             dist/assets/offline/images-assembly-report.json
           if-no-files-found: warn
+          retention-days: 30

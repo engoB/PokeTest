@@ -8,13 +8,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PokéVault">
-  <link rel="manifest" href="./manifest.webmanifest?v=5.0.0">
-  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=5.0.0">
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32.png?v=5.0.0">
-  <link rel="apple-touch-icon" href="./assets/icon-192.png?v=5.0.0">
+  <link rel="manifest" href="./manifest.webmanifest?v=5.1.0">
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=5.1.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32.png?v=5.1.0">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png?v=5.1.0">
   <link rel="stylesheet" href="./style.css">
   <title>PokéVault — Mon classeur</title>
-  <script defer src="./app.bundle.js?v=5.0.0"></script>
+  <script defer src="./app.bundle.js?v=5.1.0"></script>
   <script>
     window.addEventListener('load', () => setTimeout(() => {
       if (window.__pvBooted) return;
@@ -85,7 +85,7 @@
         <section id="catalog" role="tabpanel" aria-labelledby="tab-cards">
           <div class="toolbar"><div class="search-wrap"><label for="card-search" class="sr-only">Rechercher une carte</label><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.7"/><path d="m16 16 5 5"/></svg><input id="card-search" type="search" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="search-suggestions" aria-expanded="false" placeholder="Tapez pour voir les cartes…"><button id="card-search-clear" class="search-clear" type="button" aria-label="Effacer la recherche de carte" title="Effacer" hidden>×</button><div id="search-suggestions" class="search-suggestions" role="listbox" aria-label="Cartes suggérées" hidden></div></div><label class="select-wrap"><span class="sr-only">Trier les cartes</span><select id="sort-select"><option value="number">Numéro de carte</option><option value="name">Nom A–Z</option><option value="price-desc">Cote indicative décroissante*</option><option value="price-asc">Cote indicative croissante*</option></select></label></div>
           <div class="filters-row"><div id="status-filters" class="segmented" aria-label="Filtrer la collection"><button type="button" data-status="all" aria-pressed="true" class="is-active">Tout voir</button><button type="button" data-status="owned" aria-pressed="false">Possédées</button><button type="button" data-status="missing" aria-pressed="false">Manquantes</button></div><label class="select-wrap category-select"><span class="sr-only">Type de carte</span><select id="type-select"><option value="all">Tous les types</option><option value="ex">ex / EX</option><option value="mega">Méga</option><option value="v">V / VMAX / VSTAR</option><option value="gx">GX</option><option value="illustration">Illustration</option><option value="secret">Secrète / Gold</option><option value="over10">Cote indicative ≥ 10 €*</option><option value="over50">Cote indicative ≥ 50 €*</option></select></label><div class="layout-switch" aria-label="Taille des cartes"><button type="button" data-layout="compact" aria-label="Affichage compact" title="Compact">▦</button><button type="button" data-layout="comfortable" aria-label="Affichage confortable" aria-pressed="true" class="is-active" title="Confort">▤</button><button type="button" data-layout="large" aria-label="Grand affichage" title="Grand">▣</button></div></div>
-          <div class="list-meta"><p id="counter" role="status" aria-live="polite">Préparation du catalogue…</p><span class="muted hint price-hint">Cotes indicatives : choisissez la finition dans la fiche.</span></div>
+          <div class="list-meta"><p id="counter" role="status" aria-live="polite">Préparation du catalogue…</p><span class="muted hint price-hint">Cotes indicatives selon les données disponibles.</span></div>
           <section id="price-coverage" class="price-coverage" aria-label="Couverture des cotes" hidden>
             <div class="price-coverage-heading"><strong>Vérification des cotes</strong><span id="price-progress" role="status" aria-live="polite">0 fiche vérifiée</span></div>
             <progress id="price-progress-bar" max="1" value="0" aria-label="Progression de l’analyse des cotes"></progress>

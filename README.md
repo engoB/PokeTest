@@ -76,7 +76,7 @@ Ne pas ouvrir `index.html` en `file://` : le service worker et certaines ressour
 | `scripts/`, `inputs/`, `tests/` | Outils de catalogue et d'images, données d'entrée et tests. |
 | `.github/workflows/` | Vérification du code et moisson planifiée. |
 
-Les commandes de construction du catalogue et du pack sont décrites dans [WORK-CATALOGUE.md](WORK-CATALOGUE.md) et [WORK-MOISSON-VISUELS.md](WORK-MOISSON-VISUELS.md). Les scans ne sont pas inclus dans le dépôt.
+Les commandes de construction du catalogue et du pack sont décrites dans [WORK-CATALOGUE.md](WORK-CATALOGUE.md) et [WORK-MOISSON-VISUELS.md](WORK-MOISSON-VISUELS.md). Aucun scan tiers n’est inclus par défaut ; seuls des fichiers dont la redistribution publique a été confirmée peuvent être ajoutés dans `assets/library/`.
 
 ## Publication sur GitHub Pages
 
@@ -84,7 +84,7 @@ Le site public est hébergé à **https://engob.github.io/PokeTest/**. La branch
 
 Un push sur `main` déclenche [**Verify PWA**](https://github.com/engoB/PokeTest/actions/workflows/verify.yml), qui exécute `npm run check`. **La réussite de ces tests ne signifie pas à elle seule que GitHub Pages a déployé la nouvelle interface** : attendre également la réussite de **pages build and deployment** dans [Actions](https://github.com/engoB/PokeTest/actions).
 
-Si l'ancienne interface reste affichée après le déploiement, recharger la page sans cache (`Ctrl+Maj+R` sur ordinateur), puis fermer et rouvrir la PWA installée. La v4.9.1 utilise `app.bundle.js?v=4.9.0`, les icônes versionnées et le service worker `pv-v4.9.1`. Ne pas effacer les données du site pour tenter une mise à jour sans avoir exporté la collection.
+Si l’ancienne interface reste affichée après le déploiement, recharger sans cache (`Ctrl+Maj+R` sur ordinateur), puis fermer et rouvrir la PWA installée. La v5.1 utilise `app.bundle.js?v=5.1.0` et le service worker `pv-v5.1`. Ne pas effacer les données du site pour tenter une mise à jour sans avoir exporté la collection.
 
 ## Confidentialité, données et limites
 
@@ -98,3 +98,7 @@ Pour la synchronisation des visuels et les nouvelles icônes, consulter [les not
 ---
 
 *PokéVault est un projet de collection indépendant, non officiel et non affilié à Nintendo, Creatures Inc., GAME FREAK ou The Pokémon Company.*
+
+## v5.1 — bibliothèque GitHub gratuite et finitions dans les fiches
+
+Le stockage payant a été remplacé par une **bibliothèque incrémentale sur GitHub Pages** (`assets/library/`). Un workflow manuel, soumis à confirmation des droits de redistribution, peut y publier les images en lots bornés. Le manifeste est initialement vide ; les fournisseurs externes restent actifs tant qu'aucun fichier autorisé n'est ajouté. La finition se choisit **uniquement dans la fiche d'une carte** ; le catalogue n'affiche plus « Choisir finition ». Les limites de GitHub Pages sont respectées par un plafond de 650 Mio de fichiers. [Guide complet](BIBLIOTHEQUE-VISUELS-v5.md).

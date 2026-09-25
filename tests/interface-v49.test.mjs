@@ -30,18 +30,18 @@ test('v4.9 displays both counters and uses the scheduled metadata branch with of
   assert.match(app,/inputs\/pokevault-index-visuels\.json\?v=4\.9\.0/);
   assert.match(app,/if\(harvested\)candidates\.push\(harvested\)/);
   assert.match(app,/harvestIndex\.has\(card\.id\)/);
-  assert.match(sw,/pv-v5\.0/);
-  assert.match(html,/app\.bundle\.js\?v=5\.0\.0/);
+  assert.match(sw,/pv-v5\.1/);
+  assert.match(html,/app\.bundle\.js\?v=5\.1\.0/);
   assert.doesNotMatch(app,/localStorage\.removeItem\('pv_collection'\)/);
 });
 
 test('new gold/red/navy icon is versioned in the browser, manifest and service worker',()=>{
   const html=read('index.html'),manifest=JSON.parse(read('manifest.webmanifest')),sw=read('sw.js'),svg=read('assets/icon.svg');
-  assert.match(html,/icon\.svg\?v=5\.0\.0/);
-  assert.match(html,/favicon-32\.png\?v=5\.0\.0/);
+  assert.match(html,/icon\.svg\?v=5\.1\.0/);
+  assert.match(html,/favicon-32\.png\?v=5\.1\.0/);
   assert.equal(manifest.theme_color,'#0b1733');
   assert.ok(manifest.icons.every(icon=>icon.src.includes('?v=4.9.0')));
-  assert.match(sw,/favicon-32\.png\?v=5\.0\.0/);
+  assert.match(sw,/favicon-32\.png\?v=5\.1\.0/);
   assert.match(svg,/#e7bd62/);
   assert.match(svg,/#b82f42/);
 });

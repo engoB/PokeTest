@@ -1,7 +1,7 @@
 /* Versioned PWA shell; API and visited images remain available offline after first load. */
-const VERSION='pv-v5.0';
+const VERSION='pv-v5.1';
 const SHELL=`${VERSION}-shell`,DATA=`${VERSION}-data`,IMAGES=`${VERSION}-images`,PACK=`${VERSION}-offline-pack`;
-const APP_FILES=['./','./index.html','./app.bundle.js?v=5.0.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./image-library-config.json?v=5.0.0','./inputs/cardmarket-links.json','./manifest.webmanifest?v=5.0.0','./assets/icon.svg?v=5.0.0','./assets/icon-192.png?v=5.0.0','./assets/icon-512.png?v=5.0.0','./assets/favicon-32.png?v=5.0.0','./assets/card-back.svg'];
+const APP_FILES=['./','./index.html','./app.bundle.js?v=5.1.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./image-library-config.json?v=5.1.0','./assets/library/manifest.json','./inputs/cardmarket-links.json','./manifest.webmanifest?v=5.1.0','./assets/icon.svg?v=5.1.0','./assets/icon-192.png?v=5.1.0','./assets/icon-512.png?v=5.1.0','./assets/favicon-32.png?v=5.1.0','./assets/card-back.svg'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const shell=await caches.open(SHELL);
   await shell.addAll(APP_FILES);
@@ -79,6 +79,10 @@ self.addEventListener('fetch',event=>{
     event.respondWith(cacheFirst(req,IMAGES,320).catch(()=>Response.error()));return;
   }
   if(url.origin===self.location.origin){
+    // GitHub Pages: refresh the small manifest; never pin it behind cache-first.
+    if(url.pathname.endsWith('/assets/library/manifest.json')){event.respondWith(networkFirst(req,SHELL).catch(()=>Response.error()));return;}
+    // Only viewed cards are cached, not the entire Git-hosted image collection.
+    if(url.pathname.includes('/assets/library/cards/')){event.respondWith(cacheFirst(req,IMAGES,320).catch(()=>Response.error()));return;}
     if(url.pathname.includes('/assets/offline/')){event.respondWith(cacheFirst(req,PACK,3200).catch(()=>Response.error()));return;}
     if(req.mode==='navigate'){event.respondWith(fetch(req).catch(async()=>(await caches.match('./index.html'))||Response.error()));return;}
     // HTML, JavaScript and CSS must update on deploy, not stay stuck in an old shell cache.

@@ -11,7 +11,7 @@ const API='https://api.tcgdex.net/v2';
 const ALTERNATE_API='https://api.pokemontcg.io/v2/cards';
 const OFFLINE_ROOT='./assets/offline/';
 const HARVEST_INDEX_URL='https://raw.githubusercontent.com/engoB/PokeTest/pokevault-image-data/index.json';
-const LIBRARY_CONFIG_URL='./image-library-config.json?v=5.0.0';
+const LIBRARY_CONFIG_URL='./image-library-config.json?v=5.1.0';
 const imageLibrary={baseUrl:null,images:new Map(),version:null,status:'unconfigured',loading:false};
 const HARVEST_CACHE_KEY='./assets/offline/harvest-index-cache';
 const HARVEST_CACHE_NAME='pokevault-harvest-index-v1';
@@ -123,8 +123,8 @@ async function loadImageLibrary(){
   if(!configResponse.ok)throw Error('No library config');
   const config=await configResponse.json();
   if(!config?.baseUrl){imageLibrary.status='unconfigured';return;}
-  const base=new URL(config.baseUrl);
-  if(base.protocol!=='https:'||base.username||base.password||base.search||base.hash||!base.pathname.endsWith('/'))throw Error('Invalid library base');
+  const base=new URL(config.baseUrl,document.baseURI);
+  if(base.origin!==location.origin||base.username||base.password||base.search||base.hash||!base.pathname.endsWith('/assets/library/'))throw Error('Library must be hosted by this GitHub Pages site');
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);let response;
   try{response=await fetch(new URL('manifest.json',base),{cache:'no-cache',signal:controller.signal});}finally{clearTimeout(timer);}
   if(!response.ok)throw Error('Library HTTP '+response.status);
@@ -132,11 +132,13 @@ async function loadImageLibrary(){
   if(manifest?.format!=='pokevault-owned-library-v1'||!manifest.images||typeof manifest.images!=='object'||Array.isArray(manifest.images))throw Error('Invalid library manifest');
   const next=new Map();
   for(const [id,row] of Object.entries(manifest.images)){
-   if(!safeCardId(id)||typeof row?.file!=='string'||!row.file.startsWith('cards/')||!['webp','png','jpg'].includes(row.file.split('.').pop())||row.file.split('/').length!==3||row.file.split('/')[2].split('.')[0].length!==16||!/^[a-f0-9]+$/.test(row.file.split('/')[2].split('.')[0]))continue;
+   if(!safeCardId(id)||typeof row?.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256)||typeof row?.file!=='string')continue;
+   const ext=row.file.split('.').pop();
+   if(!['webp','png','jpg'].includes(ext)||row.file!==`cards/${encodeURIComponent(id)}/${row.sha256.slice(0,16)}.${ext}`)continue;
    const url=new URL(row.file,base);if(url.origin!==base.origin||!url.pathname.startsWith(base.pathname))continue;
    next.set(id,{url:url.href,source:'owned-library',checkedAt:Number(row.checkedAt)||0});
   }
-  if(!next.size)throw Error('Empty library');
+  // The GitHub Pages library starts empty until an authorized batch is committed.
   imageLibrary.baseUrl=base.href;imageLibrary.images=next;imageLibrary.version=manifest.version||null;imageLibrary.status='ready';
   for(const tile of $('cards-grid').querySelectorAll('.card-tile')){
    const id=tile.dataset.id,img=tile.querySelector('img.card-art');
@@ -384,7 +386,7 @@ function updateImageCoverage(){
   $('image-harvest-bar').max=Math.max(1,scope.length);$('image-harvest-bar').value=indexed;
   const origin={github:'Moisson GitHub à jour',cached:'Dernier index GitHub enregistré sur cet appareil',snapshot:'Index de secours intégré au dépôt',unavailable:'GitHub indisponible : les visuels locaux restent accessibles'};
   const date=state.harvestExportedAt?` · ${new Date(state.harvestExportedAt).toLocaleString('fr-FR')}`:'';
-  $('image-harvest-source').textContent=(imageLibrary.status==='ready'?`Bibliothèque PokéVault : ${fr(hosted)} / ${fr(scope.length)} fichiers hébergés · version ${imageLibrary.version||'inconnue'}. `:imageLibrary.status==='unconfigured'?'Bibliothèque non configurée : ':imageLibrary.status==='unavailable'?'Bibliothèque indisponible, secours actif : ':'Bibliothèque en cours de chargement : ')+(origin[state.harvestSource]||'Connexion à la moisson…')+date+' · URL candidates, pas toutes testées sur cet appareil.';
+  $('image-harvest-source').textContent=(imageLibrary.status==='ready'?`Bibliothèque GitHub : ${fr(hosted)} / ${fr(scope.length)} fichiers hébergés · version ${imageLibrary.version||'inconnue'}. `:imageLibrary.status==='unconfigured'?'Bibliothèque non configurée : ':imageLibrary.status==='unavailable'?'Bibliothèque indisponible, secours actif : ':'Bibliothèque en cours de chargement : ')+(origin[state.harvestSource]||'Connexion à la moisson…')+date+' · URL candidates, pas toutes testées sur cet appareil.';
   const stats=imageCoverage(scope,state.imageRecords,state.imageTransient);
   $('image-progress').textContent=`${stats.checked.toLocaleString('fr-FR')} / ${stats.total.toLocaleString('fr-FR')} vérifiés sur cet appareil · ${stats.found.toLocaleString('fr-FR')} trouvés · ${stats.missing.toLocaleString('fr-FR')} introuvables`;
   $('image-progress-bar').max=Math.max(1,stats.total);
@@ -601,7 +603,7 @@ function renderViewport(force=false){
       image.addEventListener('error',()=>onImageError(image));
     }
     tile.setAttribute('aria-posinset',String(range.start+i+1));
-    const price=tile.querySelector('[data-role=price]');if(price){const p=state.prices[card.id];price.textContent=trend(card.id)===null?(p?.quotes?.length>1?'Choisir finition':'Cote —'):formatEuro(trend(card.id));price.title=p?.selectedVariant?`Cote indicative TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}
+    const price=tile.querySelector('[data-role=price]');if(price){const p=state.prices[card.id];price.textContent=trend(card.id)===null?'Cote —':formatEuro(trend(card.id));price.title=p?.selectedVariant?`Cote indicative TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}
     const qty=state.collection[card.id]||0;tile.dataset.owned=String(qty>0);
     const owned=tile.querySelector('[data-role=owned]');if(qty){if(owned)owned.textContent=`×${qty}`;else tile.querySelector('.card-open').insertAdjacentHTML('beforeend',`<span class="owned-pill" data-role="owned">×${qty}</span>`);}else owned?.remove();
     tile.querySelector('[data-action=minus]').hidden=!qty;
@@ -658,9 +660,9 @@ function ghostMarkup(id){return `<div class="card-ghost" aria-hidden="true"><spa
 function cardMarkup(c,index){
   const quantity=state.collection[c.id]||0;
   const p=trend(c.id);
-  return `<article class="card-tile" aria-posinset="${index+1}" aria-setsize="${state.display.length}" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" style="--card-delay:${(index%13)*-170}ms" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup(c.id)}<img class="card-art" alt="Illustration de ${escapeHtml(c.name)}" loading="lazy" decoding="async" hidden><span class="price-pill" data-role="price">${p!==null?formatEuro(p):state.prices[c.id]?.quotes?.length>1?'Choisir finition':'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;
+  return `<article class="card-tile" aria-posinset="${index+1}" aria-setsize="${state.display.length}" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" style="--card-delay:${(index%13)*-170}ms" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup(c.id)}<img class="card-art" alt="Illustration de ${escapeHtml(c.name)}" loading="lazy" decoding="async" hidden><span class="price-pill" data-role="price">${p!==null?formatEuro(p):'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;
 }
-function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const el=tile.querySelector('[data-role=price]');if(el){const p=state.prices[id];el.textContent=trend(id)===null?(p?.quotes?.length>1?'Choisir finition':'Cote —'):formatEuro(trend(id));el.title=p?.selectedVariant?`Cote indicative TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}}}
+function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const el=tile.querySelector('[data-role=price]');if(el){const p=state.prices[id];el.textContent=trend(id)===null?'Cote —':formatEuro(trend(id));el.title=p?.selectedVariant?`Cote indicative TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}}}
 function updateTileQuantity(id){
   const quantity=state.collection[id]||0;
   for(const tile of $('cards-grid').querySelectorAll('.card-tile')){

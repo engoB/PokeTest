@@ -20,3 +20,21 @@ export function reconcileIds(existingIds, wantedIds) {
   const wanted=new Set(wantedIds);
   return {retained:existingIds.filter(id=>wanted.has(id)),added:wantedIds.filter(id=>!existingIds.includes(id)),removed:existingIds.filter(id=>!wanted.has(id))};
 }
+
+// The scheduled GitHub harvest publishes URL candidates, not browser-verified images.
+// Keep this index separate from local imageRecords so the two counters remain honest.
+export function parseHarvestIndex(payload,validId,validUrl){
+  if(payload?.format!=='pokevault-image-index-v1'||!payload.images||typeof payload.images!=='object'||Array.isArray(payload.images))throw Error('Invalid harvest index');
+  const entries=Object.entries(payload.images);
+  if(entries.length>30000)throw Error('Harvest index exceeds the French catalog');
+  const images=new Map();
+  for(const [id,entry] of entries){
+    if(!validId(id)||!entry||typeof entry!=='object')continue;
+    const url=validUrl(entry.url);
+    if(!url)continue;
+    images.set(id,{url,source:entry.source||'github-harvest',checkedAt:Number.isFinite(entry.checkedAt)?entry.checkedAt:0});
+  }
+  if(!images.size)throw Error('Empty or invalid harvest index');
+  const exportedAt=Date.parse(payload.exportedAt);
+  return {images,exportedAt:Number.isFinite(exportedAt)?exportedAt:null};
+}

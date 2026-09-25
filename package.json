@@ -1,7 +1,7 @@
 {
   "name": "pokevault-pwa",
   "private": true,
-  "version": "4.8.0",
+  "version": "4.9.0",
   "type": "module",
   "scripts": {"dev":"python3 -m http.server 4173", "pack:offline":"node scripts/build-offline.mjs","pack:catalog":"node scripts/build-full-catalog.mjs", "harvest:images":"node scripts/harvest-images.mjs --mode resolve", "pack:images":"node scripts/harvest-images.mjs --mode pack", "research:images":"node scripts/image-research.mjs", "import:personal":"node scripts/import-personal-images.mjs", "assemble:images":"node scripts/assemble-image-pack.mjs", "collect:images":"node scripts/collect-image-shards.mjs", "test":"node --test", "check":"node scripts/build.mjs --check && node --check app.bundle.js && node --check app.js && node --check core.mjs && node --check db.mjs && node --check virtual-grid.mjs && node --check image-state.mjs && node --check sw.js && node --check scripts/build-offline.mjs && node --check scripts/offline-core.mjs && node --check scripts/catalog-core.mjs && node --check scripts/build-full-catalog.mjs && node --check scripts/harvest-images.mjs && node --check scripts/harvest-core.mjs && node --check scripts/image-research.mjs && node --check scripts/import-personal-images.mjs && node --check scripts/assemble-image-pack.mjs && node --check scripts/collect-image-shards.mjs && node --test"},
   "engines": {"node": ">=20"}

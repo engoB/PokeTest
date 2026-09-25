@@ -1,1 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title"><title id="title">PokéVault</title><defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#17292c"/><stop offset="1" stop-color="#101319"/></linearGradient><linearGradient id="holo" x2="1" y2="1"><stop stop-color="#b2f3d6"/><stop offset="1" stop-color="#67c9c9"/></linearGradient></defs><rect width="512" height="512" rx="118" fill="url(#bg)"/><rect x="112" y="72" width="288" height="368" rx="36" fill="none" stroke="url(#holo)" stroke-width="21"/><path d="m256 142 110 114-110 114-110-114z" fill="url(#holo)"/><path d="m256 197 56 59-56 59-56-59z" fill="#163a37"/><circle cx="256" cy="256" r="22" fill="#a8f8d9"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">PokéVault</title>
+  <desc id="desc">Emblème de collection : sceau rouge et bleu nuit, bordure dorée.</desc>
+  <defs>
+    <linearGradient id="night" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#1d365b"/>
+      <stop offset="1" stop-color="#091328"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fff2bd"/>
+      <stop offset=".48" stop-color="#e7bd62"/>
+      <stop offset="1" stop-color="#b78134"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ff857a"/>
+      <stop offset="1" stop-color="#b82f42"/>
+    </linearGradient>
+    <clipPath id="disc"><circle cx="256" cy="256" r="142"/></clipPath>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#night)"/>
+  <rect x="17" y="17" width="478" height="478" rx="99" fill="none" stroke="#e7bd62" stroke-opacity=".48" stroke-width="5"/>
+  <circle cx="256" cy="256" r="174" fill="#0c1933" stroke="url(#gold)" stroke-width="19"/>
+  <g clip-path="url(#disc)">
+    <rect x="112" y="112" width="288" height="144" fill="url(#red)"/>
+    <rect x="112" y="256" width="288" height="144" fill="#142d50"/>
+    <path d="M112 256H400" stroke="url(#gold)" stroke-width="24"/>
+    <path d="M132 187C171 142 215 129 257 132" fill="none" stroke="#ffd4c5" stroke-opacity=".48" stroke-width="12" stroke-linecap="round"/>
+  </g>
+  <circle cx="256" cy="256" r="60" fill="#0e203d" stroke="url(#gold)" stroke-width="17"/>
+  <circle cx="256" cy="256" r="32" fill="url(#gold)"/>
+  <circle cx="246" cy="246" r="10" fill="#fff5cf" fill-opacity=".88"/>
+  <path d="M84 105l10 23 23 10-23 10-10 23-10-23-23-10 23-10z" fill="#f0d58c"/>
+  <path d="M430 353l7 17 17 7-17 7-7 17-7-17-17-7 17-7z" fill="#f0d58c"/>
+</svg>

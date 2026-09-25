@@ -4,12 +4,15 @@ import {
 } from './core.mjs';
 import {openCache,loadCache,putCache,deleteCache} from './db.mjs';
 import {windowRows} from './virtual-grid.mjs';
-import {imageState,imageCoverage} from './image-state.mjs';
+import {imageState,imageCoverage,parseHarvestIndex} from './image-state.mjs';
 
 const API='https://api.tcgdex.net/v2';
 // Transitional, unauthenticated fallback only. The legacy provider retires March 2027.
 const ALTERNATE_API='https://api.pokemontcg.io/v2/cards';
 const OFFLINE_ROOT='./assets/offline/';
+const HARVEST_INDEX_URL='https://raw.githubusercontent.com/engoB/PokeTest/pokevault-image-data/index.json';
+const HARVEST_CACHE_KEY='./assets/offline/harvest-index-cache';
+const HARVEST_CACHE_NAME='pokevault-harvest-index-v1';
 const offlinePack={images:Object.create(null),sealed:false,catalog:null,sets:null,setDetails:null,detailsManifest:null,detailShards:new Map()};
 const $=id=>document.getElementById(id);
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -20,6 +23,7 @@ const state={
   imageRecords:new Map(),imageExtras:new Map(),imageFailures:new Map(),imageRetryAt:new Map(),imageRetryCount:new Map(),pendingFallback:new Map(),english:new Map(),
   tileCache:new Map(),imageProviderErrors:new Set(),imageTransient:new Map(),imageScanToken:0,imageScanning:false,imagePaused:false,imageScanScope:[],imageScanLimit:0,
   pendingEnglish:new Map(),imageCoverageTimer:0,imageAutoTimer:0,
+  harvestIndex:new Map(),harvestExportedAt:null,harvestSource:'pending',harvestSyncing:false,
   englishSets:new Map(),altChecked:new Set(),altAttempted:new Set(),altCalls:0,altLastCall:0,altTail:Promise.resolve(),queue:[],running:0,
   scope:[],display:[],viewport:{startRow:-1,endRow:-1,columns:0,stride:0},scrollFrame:0,lastScroll:0,
   inspected:null,requestId:0,scanToken:0,scanning:false,scanAll:false,pendingResort:false,installEvent:null
@@ -108,6 +112,48 @@ async function loadOfflinePack(){
       state.imageRecords.set(id,{url:entry.url,source:entry.source||'previously-verified',checkedAt:entry.checkedAt});
     }
   }
+}
+// Pull the latest metadata branch directly, with a cached copy and the repository
+// snapshot as fallbacks. Never import URLs as locally verified browser images.
+async function loadHarvestIndex(){
+  if(offlinePack.sealed||state.harvestSyncing)return;
+  state.harvestSyncing=true;updateImageCoverage();
+  let parsed=null,source='unavailable';
+  const cache=typeof caches!=='undefined'?await caches.open(HARVEST_CACHE_NAME).catch(()=>null):null;
+  try{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),18000);
+    try{
+      const response=await fetch(`${HARVEST_INDEX_URL}?v=${Math.floor(Date.now()/21600000)}`,{cache:'no-store',signal:controller.signal});
+      if(!response.ok)throw Error(`Harvest index HTTP ${response.status}`);
+      const copy=response.clone();
+      parsed=parseHarvestIndex(await response.json(),safeCardId,trustedImageUrl);
+      source='github';
+      // A 3 MB metadata response is cheaper to cache than to reverify 22k cards.
+      if(cache)cache.put(HARVEST_CACHE_KEY,copy).catch(()=>{});
+    }finally{clearTimeout(timer);}
+  }catch(error){
+    console.warn('Live harvest index unavailable; trying cached index',error);
+    if(cache)try{
+      const response=await cache.match(HARVEST_CACHE_KEY);
+      if(response){parsed=parseHarvestIndex(await response.json(),safeCardId,trustedImageUrl);source='cached';}
+    }catch{}
+    if(!parsed)try{
+      const response=await fetch('./inputs/pokevault-index-visuels.json?v=4.9.0');
+      if(response.ok){parsed=parseHarvestIndex(await response.json(),safeCardId,trustedImageUrl);source='snapshot';}
+    }catch{}
+  }finally{state.harvestSyncing=false;}
+  if(parsed){
+    // A stale CDN response must not replace a newer cached index.
+    if(!state.harvestExportedAt||!parsed.exportedAt||parsed.exportedAt>=state.harvestExportedAt){
+      state.harvestIndex=parsed.images;state.harvestExportedAt=parsed.exportedAt;state.harvestSource=source;
+      for(const tile of $('cards-grid').querySelectorAll('.card-tile')){
+        const id=tile.dataset.id,img=tile.querySelector('img.card-art');
+        if(state.harvestIndex.has(id)&&img&&!img.classList.contains('is-loaded')&&!img.__loading)applyImageToVisible(id);
+      }
+      startAutomaticImageScan();
+    }
+  }else if(!state.harvestIndex.size)state.harvestSource='unavailable';
+  updateImageCoverage();
 }
 function isFresh(id){const p=state.prices[id];return Boolean(p?.source==='tcgdex-cardmarket'&&p.fetchedAt&&Date.now()-p.fetchedAt<PRICE_TTL);}
 function trend(id){const p=state.prices[id];return p?.source==='tcgdex-cardmarket'&&p.selectedVariant&&Number.isFinite(p.trend)?p.trend:null;}
@@ -276,6 +322,7 @@ function updateImageCoverage(){
   if(state.catalogStatus!=='ready'){
     $('image-status').textContent=state.catalogStatus==='error'?'Catalogue indisponible':'Chargement du catalogue';
     $('image-progress').textContent='En attente du catalogue';
+    $('image-harvest-progress').textContent='Synchronisation de l’index GitHub…';
     $('image-progress-bar').max=1;$('image-progress-bar').value=0;
     $('image-warning').textContent=state.catalogStatus==='error'
       ?'Impossible de rechercher les illustrations avant le chargement du catalogue. Cliquez sur Réessayer.'
@@ -285,6 +332,9 @@ function updateImageCoverage(){
     return;
   }
   if(offlinePack.sealed){
+    $('image-harvest-progress').textContent='Pack local figé · moisson distante désactivée';
+    $('image-harvest-source').textContent='Cette édition utilise exclusivement les illustrations embarquées.';
+    $('image-harvest-bar').max=1;$('image-harvest-bar').value=0;
     const scope=currentImageScope(),local=scope.filter(c=>offlinePack.images[c.id]).length;
     $('image-progress').textContent=`${local.toLocaleString('fr-FR')} / ${scope.length.toLocaleString('fr-FR')} visuels locaux · ${(scope.length-local).toLocaleString('fr-FR')} non embarqués`;
     $('image-progress-bar').max=Math.max(1,scope.length);$('image-progress-bar').value=local;
@@ -292,8 +342,18 @@ function updateImageCoverage(){
     $('image-next').hidden=true;$('image-all').hidden=true;$('image-stop').hidden=true;
     $('image-status').textContent='Pack local';return;
   }
-  const stats=imageCoverage(currentImageScope(),state.imageRecords,state.imageTransient);
-  $('image-progress').textContent=`${stats.checked.toLocaleString('fr-FR')} / ${stats.total.toLocaleString('fr-FR')} vérifiés · ${stats.found.toLocaleString('fr-FR')} trouvés · ${stats.missing.toLocaleString('fr-FR')} introuvables`;
+  const scope=currentImageScope();
+  const indexed=scope.reduce((count,card)=>count+(state.harvestIndex.has(card.id)?1:0),0);
+  const fr=value=>value.toLocaleString('fr-FR');
+  $('image-harvest-progress').textContent=state.harvestIndex.size
+    ?`${fr(indexed)} / ${fr(scope.length)} URL indexées · ${(indexed/Math.max(1,scope.length)*100).toLocaleString('fr-FR',{maximumFractionDigits:2})} %`
+    :state.harvestSyncing?'Synchronisation de l’index GitHub…':'Index indisponible · vérification locale active';
+  $('image-harvest-bar').max=Math.max(1,scope.length);$('image-harvest-bar').value=indexed;
+  const origin={github:'Moisson GitHub à jour',cached:'Dernier index GitHub enregistré sur cet appareil',snapshot:'Index de secours intégré au dépôt',unavailable:'GitHub indisponible : les visuels locaux restent accessibles'};
+  const date=state.harvestExportedAt?` · ${new Date(state.harvestExportedAt).toLocaleString('fr-FR')}`:'';
+  $('image-harvest-source').textContent=(origin[state.harvestSource]||'Connexion à la moisson…')+date+' · URL candidates, pas toutes testées sur cet appareil.';
+  const stats=imageCoverage(scope,state.imageRecords,state.imageTransient);
+  $('image-progress').textContent=`${stats.checked.toLocaleString('fr-FR')} / ${stats.total.toLocaleString('fr-FR')} vérifiés sur cet appareil · ${stats.found.toLocaleString('fr-FR')} trouvés · ${stats.missing.toLocaleString('fr-FR')} introuvables`;
   $('image-progress-bar').max=Math.max(1,stats.total);
   $('image-progress-bar').value=stats.checked;
   const remaining=stats.pending+stats.error+stats.checking;
@@ -324,7 +384,7 @@ function markImageStatus(id,status){
 function imageLabel(id){
   if(offlinePack.sealed&&!offlinePack.images[id])return 'Visuel non embarqué';
   const status=imageState(id,state.imageRecords,state.imageTransient);
-  return status==='checking'?'Recherche en cours…':status==='missing'?'Aucun visuel trouvé':status==='error'?'Nouvel essai automatique prévu':status==='found'?'':'Recherche non commencée';
+  return status==='checking'?'Recherche en cours…':status==='missing'?(state.harvestIndex.has(id)?'Nouveau visuel indexé · à vérifier':'Aucun visuel trouvé'):status==='error'?'Nouvel essai automatique prévu':status==='found'?'':state.harvestIndex.has(id)?'Visuel indexé · à vérifier':'Recherche non commencée';
 }
 function cancelImageScan(){state.imageScanToken++;state.imageScanning=false;clearTimeout(state.imageAutoTimer);scheduleImageCoverage();}
 function stopImageScan(){state.imagePaused=true;try{localStorage.setItem('pv_image_scan_paused','true');}catch{}cancelImageScan();}
@@ -334,7 +394,7 @@ function imageCandidates(){
   const displayed=new Set([...$('cards-grid').querySelectorAll('.card-tile')].map(tile=>tile.dataset.id));
   for(const card of cards){
     const status=imageState(card.id,state.imageRecords,state.imageTransient);
-    if(status==='found'||status==='missing'||status==='checking'||(status==='error'&&(state.imageRetryAt.get(card.id)||0)>Date.now()))continue;
+    if(status==='found'||(status==='missing'&&!state.harvestIndex.has(card.id))||status==='checking'||(status==='error'&&(state.imageRetryAt.get(card.id)||0)>Date.now()))continue;
     if(state.collection[card.id])owned.push(card);
     else if(displayed.has(card.id))visible.push(card);
     else rest.push(card);
@@ -365,7 +425,7 @@ function probeImage(url,timeout=8500){
   });
 }
 async function verifyCardImage(id){
-  if(imageState(id,state.imageRecords,state.imageTransient)==='found'||imageState(id,state.imageRecords,state.imageTransient)==='missing')return;
+  if(imageState(id,state.imageRecords,state.imageTransient)==='found'||(imageState(id,state.imageRecords,state.imageTransient)==='missing'&&!state.harvestIndex.has(id)))return;
   markImageStatus(id,'checking');
   const tried=new Set();let uncertain=false;
   try{
@@ -628,9 +688,11 @@ function imageOptions(id,quality){
   if(offlinePack.sealed&&!offlinePack.images[id])return [];
   const card=state.cardIndex.get(id);
   const record=state.imageRecords.get(id);
-  if(record?.verificationVersion===3&&record?.missingUntil>Date.now())return [];
+  const harvested=state.harvestIndex.get(id);
+  if(record?.verificationVersion===3&&record?.missingUntil>Date.now()&&!harvested)return [];
   const candidates=[];
   if(record?.source&&record.source!=='missing')candidates.push(record);
+  if(harvested)candidates.push(harvested);
   if(card?.image)candidates.push({source:'tcgdex-fr',base:card.image});
   if(state.details.get(id)?.image)candidates.push({source:'tcgdex-fr',base:state.details.get(id).image});
   candidates.push(...(state.imageExtras.get(id)||[]));
@@ -1024,13 +1086,14 @@ function bindEvents(){
   $('jump-top').addEventListener('click',jumpTop);$('jump-bottom').addEventListener('click',jumpBottom);
   window.addEventListener('scroll',onScroll,{passive:true});
   window.addEventListener('resize',()=>{state.viewport.stride=0;requestAnimationFrame(()=>renderViewport(true));},{passive:true});
-  window.addEventListener('online',()=>{networkStatus();startAutomaticImageScan();});window.addEventListener('offline',()=>{networkStatus();stopScan();cancelImageScan();});
+  window.addEventListener('online',()=>{networkStatus();loadHarvestIndex();startAutomaticImageScan();});window.addEventListener('offline',()=>{networkStatus();stopScan();cancelImageScan();});
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();state.installEvent=event;$('install-btn').hidden=false;});
   if(/iPhone|iPad|iPod/.test(navigator.userAgent)&&!navigator.standalone)$('install-btn').hidden=false;
 }
 bindEvents();applyOptions();networkStatus();updateSummary();registerSW();
+setInterval(()=>{if(navigator.onLine)loadHarvestIndex();},6*60*60*1000);
 window.__pvBooted=true;
-loadOfflinePack().then(()=>Promise.allSettled([hydrateCache(),loadCatalog(),loadReviewedMarketLinks()])).then(results=>{
+loadOfflinePack().then(()=>Promise.allSettled([hydrateCache(),loadCatalog(),loadReviewedMarketLinks(),loadHarvestIndex()])).then(results=>{
   if(results.some(result=>result.status==='rejected')){
     const errors=results.filter(result=>result.status==='rejected').map(result=>result.reason?.message||'Erreur inconnue');
     console.error('PokéVault initialisation',...errors);

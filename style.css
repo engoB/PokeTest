@@ -170,3 +170,12 @@ body{background:radial-gradient(ellipse 80% 40% at 12% 0%,#263f70 0%,transparent
 @media(max-width:590px){.dialog-content{padding:1rem 1.1rem 1.2rem}}
 
 .price-match-warning{display:block;border-left:3px solid #ffcf6d;padding:.45rem .65rem;background:#f0b43a12;color:#ffe6b5;font-size:.69rem;line-height:1.45;border-radius:4px}
+
+/* v4.9: distinguish URL discovery on GitHub from real browser image verification. */
+.image-harvest-summary{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;margin-top:.4rem}
+.image-harvest-summary strong{font-size:.82rem;color:#f2d484;font-variant-numeric:tabular-nums}
+.image-coverage progress#image-harvest-bar::-webkit-progress-value{background:#e8c76e}
+.image-coverage progress#image-harvest-bar::-moz-progress-bar{background:#e8c76e}
+.image-harvest-source{font-size:.68rem!important;color:#b3c4d9!important}
+.image-local-heading{padding-top:.6rem;margin-top:.3rem;border-top:1px solid #e7c98733}
+.image-local-heading .eyebrow{font-size:.66rem;color:#a9d2ee}

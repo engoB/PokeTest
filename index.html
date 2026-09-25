@@ -8,12 +8,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PokéVault">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
-  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="manifest" href="./manifest.webmanifest?v=4.9.0">
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg?v=4.9.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32.png?v=4.9.0">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png?v=4.9.0">
   <link rel="stylesheet" href="./style.css">
   <title>PokéVault — Mon classeur</title>
-  <script defer src="./app.bundle.js?v=4.8.0"></script>
+  <script defer src="./app.bundle.js?v=4.9.0"></script>
   <script>
     window.addEventListener('load', () => setTimeout(() => {
       if (window.__pvBooted) return;
@@ -83,6 +84,10 @@
           </section>
           <section id="image-coverage" class="price-coverage image-coverage" aria-label="Couverture des illustrations">
             <div class="price-coverage-heading"><strong>Vérification des visuels</strong><span id="image-status" class="image-status">Prête à analyser</span></div>
+            <div class="image-harvest-summary"><span class="eyebrow">Moisson GitHub · URL indexées</span><strong id="image-harvest-progress" role="status" aria-live="polite">Synchronisation de l’index GitHub…</strong></div>
+            <progress id="image-harvest-bar" max="1" value="0" aria-label="URL indexées par la moisson GitHub"></progress>
+            <p id="image-harvest-source" class="image-harvest-source">La moisson GitHub et les vérifications du navigateur sont indépendantes.</p>
+            <div class="image-local-heading"><span class="eyebrow">Vérification réelle sur cet appareil</span></div>
             <p id="image-progress" role="status" aria-live="polite">0 / 0 vérifiés · 0 trouvés · 0 introuvables</p>
             <progress id="image-progress-bar" max="1" value="0" aria-label="Progression de la vérification des illustrations"></progress>
             <p id="image-warning">Analyse automatique du catalogue entier pendant que l’app est ouverte ; échecs réseau et quotas sont réessayés avec temporisation.</p>

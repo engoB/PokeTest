@@ -1,151 +1,98 @@
-> **v4.6 :** croix de recherche, lien d’achat Cardmarket (direct uniquement si URL vérifiée), rapport de recherche sur six catalogues et import local de scans privés. Voir [GUIDE-EXHAUSTIVITE-PRIVEE.md](GUIDE-EXHAUSTIVITE-PRIVEE.md).
+# PokéVault
 
-# PokéVault v4 — pack d’images natif optionnel
+**Votre classeur de cartes Pokémon, partout avec vous.** Une application web progressive (PWA) en français pour explorer le catalogue, suivre sa collection et retrouver ses cartes, sur téléphone comme sur ordinateur.
 
-Cette version conserve le correctif de démarrage v3.1 et ajoute le builder de visuels. Le ZIP livré contient le **code**, pas les illustrations protégées ; voir la section V4 en fin de fichier.
+[![Vérification PWA](https://github.com/engoB/PokeTest/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/engoB/PokeTest/actions/workflows/verify.yml)
+![Version](https://img.shields.io/badge/version-4.8.0-0b1733)
+![Stack](https://img.shields.io/badge/stack-HTML%20%2F%20CSS%20%2F%20JavaScript-e6b84c)
 
-## Base héritée de v3.1
+**[Ouvrir PokéVault ↗](https://engob.github.io/PokeTest/)** · [Suivre les déploiements](https://github.com/engoB/PokeTest/actions) · [Signaler un problème](https://github.com/engoB/PokeTest/issues)
 
+> Projet indépendant, non affilié à The Pokémon Company. Les prix sont indicatifs ; les illustrations restent la propriété de leurs ayants droit.
 
-Cette archive contient **app.bundle.js**, un script autonome qui évite les imports JavaScript manquants ou mal servis. Le chargement affiche une erreur explicite plutôt que quatre cartes fantômes bloquées.
+## L'expérience PokéVault
 
-**Déploiement :** transférer **tous les fichiers et dossiers** de `PokeTest-Premium/` à la racine du site, en particulier `app.bundle.js`, `index.html` et `sw.js`. Conserver la même URL / origine que la version précédente pour retrouver automatiquement `pv_collection`. Ne pas effacer les données du site.
+| Fonctionnalité | Ce que propose la v4.8 |
+| --- | --- |
+| Catalogue français | 22 170 références dans le snapshot FR du 24 septembre 2026, classées par extension. |
+| Recherche immédiate | Filtrage dès la saisie, suggestions avec extension et numéro, navigation au clavier. |
+| Collection personnelle | Quantités possédées, filtres « Possédées / Manquantes », import et export JSON. |
+| Interface personnalisable | Thème bleu nuit, or et rouge ; animations de cartes et affichage des cotes activables dans **⚙ Options**. |
+| Cotes par finition | Données statistiques TCGdex / Cardmarket pour les finitions disponibles : standard, holographique et reverse. |
+| Achat | Lien direct Cardmarket uniquement lorsqu'une fiche produit exacte est connue ; sinon, recherche explicite. |
+| Illustrations | Recherche automatique dans l'application et moisson planifiée sur GitHub Actions. |
+| Confort | Grille virtualisée, trois tailles de cartes, navigation rapide, interface adaptée au mobile. |
 
-**Test local :** ouvrir un terminal dans `PokeTest-Premium/`, puis `py -m http.server 4173` (Windows avec Python) et ouvrir `http://localhost:4173`. Ne pas ouvrir `index.html` directement depuis le ZIP.
+Les animations respectent la préférence système de réduction des mouvements. Une carte sans prix connu n'est **jamais** considérée comme valant 0 € ; une cote statistique n'est ni une offre de vente ni une garantie de correspondance avec une annonce Cardmarket.
 
-**Si le catalogue reste vide :** ouvrir F12 → Console / Réseau, vérifier que `app.bundle.js` retourne 200, puis essayer Ctrl+Maj+R. Le catalogue TCGdex a un délai maximal de 35 secondes avant de proposer « Réessayer ».
+## Utiliser l'application
 
-**Collection :** `pv_collection` n'est ni migrée ni supprimée. Exporter une sauvegarde JSON avant tout changement d'URL ou de domaine.
+1. Ouvrir **[PokéVault](https://engob.github.io/PokeTest/)** dans un navigateur récent. Sur mobile, utiliser « Ajouter à l'écran d'accueil » pour l'installer comme PWA.
+2. Rechercher une carte ou choisir une extension, ouvrir sa fiche et ajuster la quantité possédée.
+3. Utiliser **Exporter** pour conserver régulièrement une sauvegarde JSON de sa collection. **Importer** fusionne une sauvegarde avec la collection présente.
 
----
+La collection est conservée **sur l'appareil**, sous la clé `pv_collection`. Il n'y a ni compte utilisateur ni synchronisation cloud. Avant de désinstaller la PWA, d'effacer les données du navigateur ou de changer de domaine, exporter la collection : les données locales ne suivent pas automatiquement.
 
-# PokéVault Premium · PWA v3
+La PWA conserve les ressources et images déjà consultées dans les limites de stockage du navigateur. Elle ne garantit pas que les 22 170 illustrations soient accessibles hors connexion.
 
-Classeur Pokémon rapide et épuré pour mobile, iPad et ordinateur. HTML/CSS/JavaScript natifs, **sans CDN JavaScript**, sans compilation et sans compte utilisateur. Le projet est indépendant et non affilié à The Pokémon Company.
+## Illustrations : recherche automatisée
 
-## Démarrer et vérifier
+Le workflow **[PokéVault – moisson d'illustrations](https://github.com/engoB/PokeTest/actions/workflows/harvest-images.yml)** exécute `resolve` quatre fois par jour, à **02:21, 08:21, 14:21 et 20:21 UTC** (les horaires GitHub peuvent être décalés). Chaque passage traite jusqu'à 400 cartes FR non résolues ou à revérifier et conserve son état pour la suite.
+
+- **`resolve`** cherche des URL d'images pour les identifiants exacts du catalogue français, à travers les locales TCGdex et les sources secondaires gratuites disponibles. Il distingue les visuels trouvés, les erreurs ou quotas à réessayer et les visuels indisponibles dans les sources effectivement vérifiées.
+- **`pokevault-image-audit`** fournit le rapport de couverture, les identifiants restants et les raisons des échecs ; **`pokevault-image-state`** permet la reprise. Une sauvegarde des métadonnées est également prévue sur la branche `pokevault-image-data`.
+- **`pack`**, facultatif, télécharge et valide les fichiers physiques en 16 lots, puis **`assemble`** produit l'inventaire du pack. Cette étape ne doit être lancée qu'après vérification des droits d'utilisation et de redistribution des scans.
+
+**Une URL indexée n'est pas une image téléchargée.** Une carte « introuvable » signifie seulement qu'aucun visuel valide n'a été obtenu dans les sources testées à ce stade. Les rapports GitHub Actions donnent l'état daté de la recherche ; ils ne prouvent pas qu'une illustration n'existe nulle part.
+
+Documentation : [fonctionnement de la moisson](WORK-MOISSON-VISUELS.md) · [automatisation des visuels](AUTOMATISATION-VISUELS.md) · [validation du périmètre FR](VALIDATION-MOISSON-FR.md).
+
+## Installation locale et vérification
+
+**Prérequis :** Node.js 20 ou supérieur et Python 3 pour le serveur de développement. L'interface utilise HTML, CSS et JavaScript natifs, sans compilation nécessaire pour ouvrir le site.
 
 ```bash
-python3 -m http.server 4173
+git clone https://github.com/engoB/PokeTest.git
+cd PokeTest
+
+# Démarrer un serveur HTTP local
+npm run dev
 # Ouvrir http://localhost:4173
-node --test
+
+# Vérifier le bundle, la syntaxe et les tests
 npm run check
 ```
 
-Publiez **les fichiers de ce dossier à la même adresse HTTPS que l'ancienne version** pour conserver le `localStorage` du navigateur. `file://` ne permet pas d'utiliser les modules JavaScript ou le service worker. Le manifeste et les chemins relatifs conviennent à GitHub Pages dans un sous-répertoire. Testez sur un vrai téléphone et une vraie connexion avant publication.
+Ne pas ouvrir `index.html` en `file://` : le service worker et certaines ressources nécessitent HTTP ou HTTPS.
 
-## Mise à jour SANS perdre sa collection
+| Élément | Rôle |
+| --- | --- |
+| `index.html`, `style.css` | Interface et présentation. |
+| `app.bundle.js`, `app.js`, `core.mjs` | Démarrage et logique applicative. |
+| `db.mjs`, `image-state.mjs`, `virtual-grid.mjs` | Cache local, illustrations et performances du catalogue. |
+| `sw.js`, `manifest.webmanifest` | Installation PWA, mise en cache et fonctionnement hors connexion partiel. |
+| `scripts/`, `inputs/`, `tests/` | Outils de catalogue et d'images, données d'entrée et tests. |
+| `.github/workflows/` | Vérification du code et moisson planifiée. |
 
-**La clé `pv_collection` est conservée telle quelle.** Aucune réinitialisation ou migration destructive n'est effectuée. Les anciennes sauvegardes `{format:'pokevault-collection', version:1, collection:{...}}` restent compatibles. L'importation **fusionne** les cartes avec la collection présente et conserve, pour chaque identifiant, la quantité la plus élevée (pas de remplacement ni de double comptage). Les prix et les images sont des caches séparés et jetables.
+Les commandes de construction du catalogue et du pack sont décrites dans [WORK-CATALOGUE.md](WORK-CATALOGUE.md) et [WORK-MOISSON-VISUELS.md](WORK-MOISSON-VISUELS.md). Les scans ne sont pas inclus dans le dépôt.
 
-Avant toute mise en production, utilisez le bouton **Exporter** sur l'installation existante et conservez le JSON ailleurs. Les données locales ne se déplacent **pas automatiquement** entre un domaine GitHub Pages, `localhost`, une PWA sur un autre domaine ou une future application iOS. Dans ce cas, utilisez Exporter / Importer. La désinstallation, l'effacement des données du site et certains nettoyages système peuvent effacer le stockage local. Aucune synchronisation cloud n'est annoncée.
+## Publication sur GitHub Pages
 
-## Illustrations manquantes
+Le site public est hébergé à **https://engob.github.io/PokeTest/**. La branche de publication attendue est `main`, dossier `/(root)`, avec la source **Deploy from a branch** dans [Settings → Pages](https://github.com/engoB/PokeTest/settings/pages).
 
-1. Image **TCGdex FR** (WebP puis PNG, avec résolution HD en fiche).
-2. Si l'image manque ou retourne une erreur : **fiche TCGdex FR détaillée**, puis **TCGdex EN avec le même identifiant**.
-3. Si ces deux sources échouent : recherche ciblée dans l'ancienne **Pokémon TCG API** (sans clé), en vérifiant strictement le numéro, le **nom anglais de l'extension** et, si disponible, le nom anglais de la carte et le nombre officiel de cartes du set. Une correspondance ambiguë est rejetée, plutôt que d'afficher une mauvaise illustration.
-4. Le résultat **effectivement chargé** est mémorisé dans IndexedDB (ou un petit cache `localStorage` de secours). Les images consultées sont mises en cache par le service worker. Un échec confirmé est temporairement mémorisé 24 h ; la fiche propose **Rechercher le visuel** pour réessayer.
-5. En dernier recours, le **verso PokéVault local** s'affiche immédiatement. Il est distinct du verso officiel Pokémon afin de ne pas incorporer un visuel de marque non licencié.
+Un push sur `main` déclenche [**Verify PWA**](https://github.com/engoB/PokeTest/actions/workflows/verify.yml), qui exécute `npm run check`. **La réussite de ces tests ne signifie pas à elle seule que GitHub Pages a déployé la nouvelle interface** : attendre également la réussite de **pages build and deployment** dans [Actions](https://github.com/engoB/PokeTest/actions).
 
-**Attention :** Pokémon TCG API (`pokemontcg.io`) est dépréciée et annonce son arrêt au **1er mars 2027**. Ce fallback est transitoire, limité à 60 recherches secondaires par session pour préserver le service gratuit. Avant cette date, remplacer cet adaptateur par un fournisseur pérenne (par exemple Scrydex), idéalement via un petit backend sécurisé pour ne pas exposer de clé API dans la PWA. Un fournisseur secondaire peut être indisponible, limité, incomplet ou refuser les requêtes cross-origin. Aucune illustration n'est inventée.
+Si l'ancienne interface reste affichée après le déploiement, recharger la page sans cache (`Ctrl+Maj+R` sur ordinateur), puis fermer et rouvrir la PWA installée. La v4.8 utilise `app.bundle.js?v=4.8.0` et le service worker `pv-v4.8`. Ne pas effacer les données du site pour tenter une mise à jour sans avoir exporté la collection.
 
-## Tri et filtres de prix
+## Confidentialité, données et limites
 
-Le tri et les seuils ≥ 10 € / ≥ 50 € utilisent **exactement le même prix tendance Cardmarket en euros**, lu sur la fiche TCGdex de l'identifiant précis. Les prix inconnus sont **inconnus, jamais 0 €** ; ils ne figurent pas dans les filtres à seuil tant qu'ils ne sont pas chargés. La section **Vérification des cotes** affiche le nombre de fiches contrôlées, le nombre coté, le nombre sans cote et la progression. Les résultats sont explicitement provisoires tant que la couverture n'atteint pas 100 %.
+- **Collection :** stockée localement dans le navigateur ; les exports JSON restent sous le contrôle de l'utilisateur.
+- **Catalogue et cotes :** fournis notamment par [TCGdex](https://tcgdex.dev/). Les données de marché sont indicatives, peuvent manquer et dépendent de la finition, de la langue et de l'état.
+- **Illustrations :** chargées depuis leurs fournisseurs ou depuis un pack local autorisé. Les scans et marques Pokémon ne sont pas cédés par ce dépôt ; vérifier les licences et conditions des fournisseurs avant toute redistribution.
+- **Hors connexion :** la PWA peut réutiliser les données et images déjà mises en cache, sous réserve des quotas propres au navigateur.
 
-En mode prix ou rareté, l'application analyse automatiquement jusqu'à **300 cartes dans une extension** (75 sur le catalogue global) avec trois requêtes concurrentes et un rythme modéré. Utilisez **Analyser 150 fiches de plus** ou **Analyser tout le périmètre** pour continuer. Pour des dizaines de milliers de cartes, une analyse complète peut être longue ; mieux vaut sélectionner une extension ou prévoir un index de prix côté serveur. Le bouton **Mettre en pause** interrompt la programmation de nouvelles requêtes. Les prix positifs ou absents sont mis en cache 24 h dans IndexedDB ; les anciens caches `pv_prices` et `pv_prices_v2` sont lus pour préserver l'historique. La valeur suivie ne couvre que les références cotées. Les prix restent indicatifs : TCGdex signale des cas d'association imparfaite de variantes.
-
-Lorsque les cotes changent pendant un défilement profond, l'application **ne réordonne pas brutalement les cartes sous le doigt** : elle propose **Actualiser le classement**. En haut de la liste, le tri se met à jour automatiquement après une courte temporisation.
-
-## Défilement et performances
-
-- **Grille virtualisée** : seuls les rangs visibles et environ 850 px de marge sont présents dans le DOM, même avec des milliers de cartes. Les espaces avant/après maintiennent la longueur et la position de défilement.
-- `requestAnimationFrame` pour le défilement, recalcul des colonnes à la rotation / au redimensionnement, dimensions de cartes réservées pour éviter les sauts visuels, `IntersectionObserver` pour les images proches de l'écran.
-- **Flèches haut/bas** à défilement animé, avec respect de `prefers-reduced-motion` ; chargement des fiches prioritaires devant le scan de fond ; cache des fiches limité en mémoire.
-- Les changements de quantité modifient uniquement la carte concernée, sans reconstruire toute la grille, sauf lorsqu'un filtre « Possédées / Manquantes » doit changer les résultats.
-
-## PWA et limites
-
-Le service worker v3 conserve le shell, les catalogues déjà consultés, les fiches récentes et jusqu'à 320 images visitées. Les catalogues globaux sont protégés de l'éviction lors des scans de prix. Le premier chargement nécessite le réseau ; une illustration non visitée ne sera pas magiquement disponible hors connexion. La collection reste dans `localStorage`, les caches remplaçables dans IndexedDB/Cache Storage. Testez les quotas réels d'iOS, les erreurs réseau et l'actualisation du service worker sur votre hébergement.
-
-La PWA **n'est pas une application iOS soumise à l'App Store**. La règle 4.2, les droits sur les images et marques, la politique de confidentialité, la restauration et d'éventuelles fonctionnalités natives devront être étudiés séparément. Aucune validation App Store n'est garantie.
-
-Sources : [TCGdex](https://tcgdex.dev/) · [Documentation Pokémon TCG API (dépréciation)](https://docs.pokemontcg.io/) · [Scrydex](https://scrydex.com/docs).
-
-## Nouveautés v3 : visuels suivis et défilement sans clignotement
-
-La section **Vérification des visuels** reste visible sous celle des cotes et mesure le **périmètre actuellement sélectionné** (recherche, extension, filtre). Elle distingue :
-
-- **Non recherchés / en attente** : aucune vérification complète n'a encore été faite. Ce n'est pas une absence de visuel.
-- **Recherche en cours** : les URL d'illustration sont effectivement testées, puis les sources FR, EN et secondaire sont consultées si nécessaire.
-- **Trouvés** : une image a réellement été chargée, et non simplement mentionnée dans une fiche API.
-- **Introuvables** : les catalogues interrogés n'ont pas fourni de visuel valide ; cet état négatif expire après 24 heures.
-- **À réessayer** : problème réseau, fournisseur indisponible, URL d'image en erreur, source secondaire limitée ou vérification incomplète. Ce statut n'est **jamais** compté comme « introuvable ».
-
-La recherche se poursuit en tâche de fond **tant que l'application reste ouverte**, par lots de deux images, en laissant la priorité au défilement. Le démarrage automatique vérifie jusqu'à 100 cartes dans le catalogue global, ou 300 dans une extension ; les boutons permettent de poursuivre par 100 ou de lancer l'ensemble du périmètre. La source secondaire temporaire reste limitée à 60 requêtes par session : les cartes non vérifiées à cause de cette limite sont signalées comme « à réessayer », pas comme absentes. La mise en pause arrête les nouveaux lots, sans annuler les requêtes déjà lancées. Une application web fermée ne peut pas garantir cette analyse en arrière-plan ; une synchronisation serveur serait nécessaire pour cela.
-
-La grille **réutilise les mêmes éléments DOM** pour les cartes communes entre deux fenêtres de défilement, au lieu de tout reconstruire à chaque mouvement. Elle conserve également jusqu'à 65 tuiles récemment sorties de l'écran et affiche toujours le verso local pendant le chargement initial, avec fondu d'entrée sur le visuel trouvé. Les images résolues restent dans IndexedDB et les fichiers visités dans le cache du service worker. Le comportement réel reste à tester sur les téléphones cibles, notamment en cas de manque de mémoire.
-
-**Compatibilité collection :** la clé `pv_collection`, les quantités et les exports JSON v1 sont inchangés. La nouvelle logique n'écrit que dans les caches d'images. Avant publication, exporter une sauvegarde JSON et conserver la même origine HTTPS pour retrouver automatiquement les données existantes.
-
-## V4 — Pack d'illustrations embarqué (préparation pour Work / natif)
-
-Cette version fonctionne sans pack (PWA habituelle) ou avec un pack `dist/assets/offline/` créé au moment du build. **L'archive du code ne contient pas les 22 000 images** : elles doivent être téléchargées depuis une machine disposant du réseau, après vérification des droits de redistribution. Ne pas pousser `dist/` ou les images sur un dépôt public sans autorisation.
-
-Dans la v4, le bouton **Index visuels** exporte les correspondances URL/carte déjà vérifiées sur **ce navigateur** (pas les images elles-mêmes, pas les quantités). Exporter séparément la collection JSON par précaution ; la v4 conserve toujours `pv_collection` et les anciens exports.
-
-Depuis Work ou un PC disposant de Node.js >=20 et d'une connexion Internet :
-
-```bash
-npm test
-npm run pack:offline -- --resolutions-json pokevault-index-visuels.json --languages de,it,es,pt --precache-limit 100
-# Produit dist/ (app statique + catalogue FR + visuels téléchargés + rapport détaillé).
-# Pour ne traiter que les cartes possédées : --only-owned ma-collection.json
-# Pour un essai rapide : --limit 100
-# Pour reprendre un build interrompu, relancer la même commande avec le même --output. Le builder limite ses requêtes à une toutes les 200 ms par défaut et ralentit après HTTP 429/5xx (`--request-gap-ms` permet d’ajuster ce délai selon les conditions du fournisseur).
-```
-
-Le builder tente successivement : URLs déjà vérifiées, TCGdex FR, TCGdex EN (même ID), puis les langues TCGdex demandées (même ID). Pour les cartes vraiment absentes, un fichier `--overrides-json overrides.json` permet d'ajouter des correspondances **revues manuellement** :
-
-```json
-{"swsh3-136":{"url":"https://images.pokemontcg.io/swsh3/136.png","reviewed":true}}
-```
-
-Une correspondance n'est acceptée que si l'image est téléchargée et possède une signature d'image valide. Les URLs arbitraires, les réponses HTML et les correspondances non revues sont refusées. Pour Scrydex, un outil externe autorisé peut produire ce fichier après appariement rigoureux nom anglais + numéro + extension + année. Si les images proviennent d’un autre CDN, ajouter explicitement son domaine avec `--allow-host cdn.exemple.org` après vérification des droits et des conditions du fournisseur ; aucune clé API ne doit être exposée. Ne jamais exposer une clé Scrydex dans l'app ou le dépôt. Le catalogue `pokemon-tcg-data` reste historique et ne remplace pas une source maintenue.
-
-`dist/assets/offline/report.json` contient `packed`, `missingIds` et les erreurs. **Un `missing` ne prouve pas que l'illustration n'existe pas** : cela signifie qu'aucun candidat autorisé n'a pu être téléchargé lors de ce build. Ajouter des overrides revus et relancer pour compléter le pack.
-
-Le dossier `dist/` est déployable tel quel sur un hébergement statique ou copiable comme `webDir` d'un projet Capacitor. Une application native contenant les fichiers embarqués n'a plus besoin de vérifier les images présentes dans le pack. Sur le Web, le navigateur impose des quotas : seules les images consultées et au plus `--precache-limit` images sélectionnées sont garanties hors ligne après installation de la PWA ; une PWA ne peut pas garantir 22 000 images hors ligne sur tous les appareils. Le service worker est versionné v4 pour éviter de conserver les fichiers v3.
-
-Les prix **ne sont pas figés dans le pack** : les cotes évoluent, et l'app conserve son système actuel de rafraîchissement et de cache. Les visuels non empaquetés conservent la recherche réseau et le verso local. Aucune modification ni purge de la clé `pv_collection`.
-
-## Priorité v4.2 : catalogue intégral autonome (données, pas illustrations)
-
-La commande `npm run pack:catalog -- --index inputs/pokevault-index-visuels.json --strict --output dist` récupère les inventaires **FR + EN** et les fiches de **chaque carte**, conserve les IDs propres à chaque impression, construit les fiches des extensions et écrit un rapport exhaustif sous `dist/assets/offline/catalogue-report.json`. Sans `detailsComplete: true`, le build est partiel et ne doit pas être livré comme un catalogue intégral. Le cache `.catalogue-cache` permet de relancer la commande sans tout retélécharger. Pour un essai sans réseau, utiliser les fixtures de `tests/catalogue.test.mjs` ; cela valide le processus mais ne constitue pas les 22 000 fiches réelles.
-
-**État des ressources :** le fichier `inputs/pokevault-index-visuels.json` reprend ton export d'URL d'images vérifiées ; il ne contient ni photos, ni cartes de collection, ni prix. Le build de catalogue n'emporte pas les illustrations protégées. Voir `WORK-CATALOGUE.md` pour la livraison complète et le test navigateur hors connexion, puis `ROADMAP-COTES.md` pour les futurs rafraîchissements manuels des prix.
+Pour l'historique précis de l'interface v4.8, consulter [les notes de version](MISE-A-JOUR-v4.8.md). Pour les évolutions envisagées des prix, consulter [la feuille de route](ROADMAP-COTES.md).
 
 ---
 
-## V4.4 — Moisson des images automatisée sur GitHub
-
-Voir **[WORK-MOISSON-VISUELS.md](WORK-MOISSON-VISUELS.md)** pour l'installation et les contrôles. Le workflow `.github/workflows/harvest-images.yml` relance la recherche quatre fois par jour, enregistre les résultats et les échecs sur la branche de métadonnées `pokevault-image-data`, et peut ensuite télécharger les scans dans 16 artefacts isolés, après vérification des droits. Le job `assemble` vérifie les octets de tous les shards et produit un rapport. L'application détecte les packs locaux `mode: sealed` et désactive alors les recherches automatiques d'images.
-
-L'export initial contenait **20 559 URL** ; l'index enrichi de la v4.5 contient **20 582 URL FR**, dont les 23 récupérées lors de la première moisson. Ce sont des URL, pas des fichiers image : les fichiers seront confirmés lors du téléchargement réel dans GitHub Actions. Aucune action sur `pv_collection` n'est nécessaire.
-
-## V4.5 — correction du périmètre de la moisson
-
-Le workflow ne cible désormais que les IDs présents dans le catalogue **français** :
-22 170 cartes dans le snapshot du 24 septembre 2026. Il continue à interroger
-les onze langues TCGdex et les fournisseurs secondaires pour trouver le visuel
-de **ces mêmes cartes**, sans ajouter les cartes uniquement anglaises. Les deux
-IDs spéciaux Zarbi `exu-!` et `exu-%3F` sont conservés dans les recherches et
-dans le futur pack local.
-
-Les anciens états `needs-provider-access` de v4.4 mélangeant quota et clé absente
-sont automatiquement reprogrammés au prochain `resolve` ; les quotas épuisés
-deviennent `retry` au lieu de rester bloqués. Le checkpoint de la première
-moisson et la collection `pv_collection` ne sont pas supprimés. Le job `pack`
-construit désormais un inventaire FR uniquement. Voir
-`WORK-MOISSON-VISUELS.md` pour le contrôle du rapport.
+*PokéVault est un projet de collection indépendant, non officiel et non affilié à Nintendo, Creatures Inc., GAME FREAK ou The Pokémon Company.*

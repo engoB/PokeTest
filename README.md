@@ -1,4 +1,53 @@
-# PokéVault
+<p align="center"><a href="https://engob.github.io/PokeTest/"><img src=".github/readme/banner.jpg" alt="PokéVault — Sa collection de cartes Pokémon, toujours dans la poche." width="100%"></a></p>
+
+<p align="center">
+  <a href="https://engob.github.io/PokeTest/"><img alt="Essayer" src="https://img.shields.io/badge/Essayer-Ouvrir_le_classeur-0b0b0f?style=for-the-badge&labelColor=0b0b0f"></a>
+  <img alt="Statut" src="https://img.shields.io/badge/Statut-En_ligne-059669?style=for-the-badge&labelColor=0b0b0f">
+  <a href="https://engob.github.io/portofolio/projets/pokevault/"><img alt="Portfolio" src="https://img.shields.io/badge/Portfolio-S%C3%A9bastien_Khai-4f46e5?style=for-the-badge&labelColor=0b0b0f"></a>
+</p>
+
+<h1 align="center">PokéVault</h1>
+<p align="center"><b>Sa collection de cartes Pokémon, toujours dans la poche.</b><br>Un classeur numérique rapide pour suivre sa collection, retrouver les visuels officiels et connaître la cote de chaque carte, même hors connexion.</p>
+
+---
+
+### Le problème
+
+Suivre des milliers de cartes, avec les bons visuels et des prix fiables, sans compte, sans abonnement et même sans réseau.
+
+### L'idée
+
+Une app « local d'abord » : tout reste sur l'appareil, et plusieurs catalogues se relaient pour ne jamais afficher une mauvaise carte.
+
+### Comment c'est fait
+
+Application web installable en JavaScript natif, cache local et mode hors ligne, cotes Cardmarket, tests automatisés.
+
+**Outils** &nbsp; `PWA` `Hors ligne` `TCGdex` `Cardmarket`
+
+### Aperçu
+
+<p align="center"><img src=".github/readme/1.webp" width="24%" alt="PokéVault — capture 1"> <img src=".github/readme/2.webp" width="24%" alt="PokéVault — capture 2"></p>
+
+### Mentions
+
+Projet personnel et non commercial, **non affilié** à Nintendo, Creatures ou The Pokémon Company. Pokémon et les noms associés sont des marques de leurs propriétaires ; les illustrations de cartes restent la propriété de leurs ayants droit. Données de cartes : TCGdex.
+
+### English
+
+**PokéVault** — *Your Pokémon card collection, always in your pocket.* A fast digital binder to track your collection, find official artwork and see each card's value, even offline.
+
+Tracking thousands of cards with the right artwork and reliable prices — no account, no subscription, even without a connection. A local-first app: everything stays on the device, and several catalogues back each other up so the wrong card is never shown. An installable web app in plain JavaScript, local cache and offline mode, Cardmarket prices, automated tests.
+
+---
+
+<p align="center"><sub>Conçu, développé et mis en ligne par <b>Sébastien Khai</b>, Product Builder · <a href="https://engob.github.io/portofolio/">portfolio</a> · <a href="https://engob.github.io/portofolio/projets/pokevault/">fiche du projet</a><br>© 2026 Sébastien Khai — tous droits réservés.</sub></p>
+
+
+<details>
+<summary><b>Documentation technique</b> · notes de développement et de mise en ligne</summary>
+
+## PokéVault
 
 **Votre classeur de cartes Pokémon, partout avec vous.** Une application web progressive (PWA) en français pour explorer le catalogue, suivre sa collection et retrouver ses cartes, sur téléphone comme sur ordinateur.
 
@@ -10,7 +59,7 @@
 
 > Projet indépendant, non affilié à The Pokémon Company. Les prix sont indicatifs ; les illustrations restent la propriété de leurs ayants droit.
 
-## L'expérience PokéVault
+### L'expérience PokéVault
 
 | Fonctionnalité | Ce que propose la v5.1.1 |
 | --- | --- |
@@ -25,7 +74,7 @@
 
 Les animations respectent la préférence système de réduction des mouvements. Une carte sans prix connu n'est **jamais** considérée comme valant 0 € ; une cote statistique n'est ni une offre de vente ni une garantie de correspondance avec une annonce Cardmarket.
 
-## Utiliser l'application
+### Utiliser l'application
 
 1. Ouvrir **[PokéVault](https://engob.github.io/PokeTest/)** dans un navigateur récent. Sur mobile, utiliser « Ajouter à l'écran d'accueil » pour l'installer comme PWA.
 2. Rechercher une carte ou choisir une extension, ouvrir sa fiche et ajuster la quantité possédée.
@@ -35,7 +84,7 @@ La collection est conservée **sur l'appareil**, sous la clé `pv_collection`. I
 
 La PWA conserve les ressources et images déjà consultées dans les limites de stockage du navigateur. Elle ne garantit pas que les 22 170 illustrations soient accessibles hors connexion.
 
-## Illustrations : recherche automatisée
+### Illustrations : recherche automatisée
 
 Le workflow **[PokéVault – moisson d'illustrations](https://github.com/engoB/PokeTest/actions/workflows/harvest-images.yml)** exécute `resolve` quatre fois par jour, à **02:21, 08:21, 14:21 et 20:21 UTC** (les horaires GitHub peuvent être décalés). Chaque passage traite jusqu'à 400 cartes FR non résolues ou à revérifier et conserve son état pour la suite.
 
@@ -49,7 +98,7 @@ Le workflow **[PokéVault – moisson d'illustrations](https://github.com/engoB/
 
 Documentation : [fonctionnement de la moisson](WORK-MOISSON-VISUELS.md) · [automatisation des visuels](AUTOMATISATION-VISUELS.md) · [validation du périmètre FR](VALIDATION-MOISSON-FR.md).
 
-## Installation locale et vérification
+### Installation locale et vérification
 
 **Prérequis :** Node.js 20 ou supérieur et Python 3 pour le serveur de développement. L'interface utilise HTML, CSS et JavaScript natifs, sans compilation nécessaire pour ouvrir le site.
 
@@ -78,7 +127,7 @@ Ne pas ouvrir `index.html` en `file://` : le service worker et certaines ressour
 
 Les commandes de construction du catalogue et du pack sont décrites dans [WORK-CATALOGUE.md](WORK-CATALOGUE.md) et [WORK-MOISSON-VISUELS.md](WORK-MOISSON-VISUELS.md). Aucun scan tiers n’est inclus par défaut ; seuls des fichiers dont la redistribution publique a été confirmée peuvent être ajoutés dans `assets/library/`.
 
-## Publication sur GitHub Pages
+### Publication sur GitHub Pages
 
 Le site public est hébergé à **https://engob.github.io/PokeTest/**. La branche de publication attendue est `main`, dossier `/(root)`, avec la source **Deploy from a branch** dans [Settings → Pages](https://github.com/engoB/PokeTest/settings/pages).
 
@@ -86,7 +135,7 @@ Un push sur `main` déclenche [**Verify PWA**](https://github.com/engoB/PokeTest
 
 Si l’ancienne interface reste affichée après le déploiement, recharger sans cache (`Ctrl+Maj+R` sur ordinateur), puis fermer et rouvrir la PWA installée. La v5.1 utilise `app.bundle.js?v=5.1.0` et le service worker `pv-v5.1`. Ne pas effacer les données du site pour tenter une mise à jour sans avoir exporté la collection.
 
-## Confidentialité, données et limites
+### Confidentialité, données et limites
 
 - **Collection :** stockée localement dans le navigateur ; les exports JSON restent sous le contrôle de l'utilisateur.
 - **Catalogue et cotes :** fournis notamment par [TCGdex](https://tcgdex.dev/). Les données de marché sont indicatives, peuvent manquer et dépendent de la finition, de la langue et de l'état.
@@ -99,6 +148,8 @@ Pour publier gratuitement des images autorisées sur GitHub Pages, consulter [le
 
 *PokéVault est un projet de collection indépendant, non officiel et non affilié à Nintendo, Creatures Inc., GAME FREAK ou The Pokémon Company.*
 
-## v5.1 — bibliothèque GitHub gratuite et finitions dans les fiches
+### v5.1 — bibliothèque GitHub gratuite et finitions dans les fiches
 
 Le stockage payant a été remplacé par une **bibliothèque incrémentale sur GitHub Pages** (`assets/library/`). Un workflow manuel, soumis à confirmation des droits de redistribution, peut y publier les images en lots bornés. Le manifeste est initialement vide ; les fournisseurs externes restent actifs tant qu'aucun fichier autorisé n'est ajouté. La finition se choisit **uniquement dans la fiche d'une carte** ; le catalogue n'affiche plus « Choisir finition ». Les limites de GitHub Pages sont respectées par un plafond de 650 Mio de fichiers. [Guide complet](BIBLIOTHEQUE-VISUELS-v5.md).
+
+</details>

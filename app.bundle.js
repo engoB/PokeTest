@@ -282,6 +282,8 @@ const API='https://api.tcgdex.net/v2';
 const ALTERNATE_API='https://api.pokemontcg.io/v2/cards';
 const OFFLINE_ROOT='./assets/offline/';
 const HARVEST_INDEX_URL='https://raw.githubusercontent.com/engoB/PokeTest/pokevault-image-data/index.json';
+const LIBRARY_CONFIG_URL='./image-library-config.json?v=5.0.0';
+const imageLibrary={baseUrl:null,images:new Map(),version:null,status:'unconfigured',loading:false};
 const HARVEST_CACHE_KEY='./assets/offline/harvest-index-cache';
 const HARVEST_CACHE_NAME='pokevault-harvest-index-v1';
 const offlinePack={images:Object.create(null),sealed:false,catalog:null,sets:null,setDetails:null,detailsManifest:null,detailShards:new Map()};
@@ -383,6 +385,36 @@ async function loadOfflinePack(){
       state.imageRecords.set(id,{url:entry.url,source:entry.source||'previously-verified',checkedAt:entry.checkedAt});
     }
   }
+}
+// Prefer our own hash-addressed image library. Only the small manifest is downloaded.
+async function loadImageLibrary(){
+ if(imageLibrary.loading)return;imageLibrary.loading=true;
+ try{
+  const configResponse=await fetch(LIBRARY_CONFIG_URL,{cache:'no-store'});
+  if(!configResponse.ok)throw Error('No library config');
+  const config=await configResponse.json();
+  if(!config?.baseUrl){imageLibrary.status='unconfigured';return;}
+  const base=new URL(config.baseUrl);
+  if(base.protocol!=='https:'||base.username||base.password||base.search||base.hash||!base.pathname.endsWith('/'))throw Error('Invalid library base');
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);let response;
+  try{response=await fetch(new URL('manifest.json',base),{cache:'no-cache',signal:controller.signal});}finally{clearTimeout(timer);}
+  if(!response.ok)throw Error('Library HTTP '+response.status);
+  const manifest=await response.json();
+  if(manifest?.format!=='pokevault-owned-library-v1'||!manifest.images||typeof manifest.images!=='object'||Array.isArray(manifest.images))throw Error('Invalid library manifest');
+  const next=new Map();
+  for(const [id,row] of Object.entries(manifest.images)){
+   if(!safeCardId(id)||typeof row?.file!=='string'||!row.file.startsWith('cards/')||!['webp','png','jpg'].includes(row.file.split('.').pop())||row.file.split('/').length!==3||row.file.split('/')[2].split('.')[0].length!==16||!/^[a-f0-9]+$/.test(row.file.split('/')[2].split('.')[0]))continue;
+   const url=new URL(row.file,base);if(url.origin!==base.origin||!url.pathname.startsWith(base.pathname))continue;
+   next.set(id,{url:url.href,source:'owned-library',checkedAt:Number(row.checkedAt)||0});
+  }
+  if(!next.size)throw Error('Empty library');
+  imageLibrary.baseUrl=base.href;imageLibrary.images=next;imageLibrary.version=manifest.version||null;imageLibrary.status='ready';
+  for(const tile of $('cards-grid').querySelectorAll('.card-tile')){
+   const id=tile.dataset.id,img=tile.querySelector('img.card-art');
+   if(next.has(id)&&img&&!img.__loading&&!img.classList.contains('is-loaded'))applyImageToVisible(id);
+  }
+ }catch(error){imageLibrary.status='unavailable';console.warn('Owner library unavailable; using external fallbacks',error);}
+ finally{imageLibrary.loading=false;scheduleImageCoverage();}
 }
 // Pull the latest metadata branch directly, with a cached copy and the repository
 // snapshot as fallbacks. Never import URLs as locally verified browser images.
@@ -615,6 +647,7 @@ function updateImageCoverage(){
   }
   const scope=currentImageScope();
   const indexed=scope.reduce((count,card)=>count+(state.harvestIndex.has(card.id)?1:0),0);
+  const hosted=scope.reduce((count,card)=>count+(imageLibrary.images.has(card.id)?1:0),0);
   const fr=value=>value.toLocaleString('fr-FR');
   $('image-harvest-progress').textContent=state.harvestIndex.size
     ?`${fr(indexed)} / ${fr(scope.length)} URL indexées · ${(indexed/Math.max(1,scope.length)*100).toLocaleString('fr-FR',{maximumFractionDigits:2})} %`
@@ -622,7 +655,7 @@ function updateImageCoverage(){
   $('image-harvest-bar').max=Math.max(1,scope.length);$('image-harvest-bar').value=indexed;
   const origin={github:'Moisson GitHub à jour',cached:'Dernier index GitHub enregistré sur cet appareil',snapshot:'Index de secours intégré au dépôt',unavailable:'GitHub indisponible : les visuels locaux restent accessibles'};
   const date=state.harvestExportedAt?` · ${new Date(state.harvestExportedAt).toLocaleString('fr-FR')}`:'';
-  $('image-harvest-source').textContent=(origin[state.harvestSource]||'Connexion à la moisson…')+date+' · URL candidates, pas toutes testées sur cet appareil.';
+  $('image-harvest-source').textContent=(imageLibrary.status==='ready'?`Bibliothèque PokéVault : ${fr(hosted)} / ${fr(scope.length)} fichiers hébergés · version ${imageLibrary.version||'inconnue'}. `:imageLibrary.status==='unconfigured'?'Bibliothèque non configurée : ':imageLibrary.status==='unavailable'?'Bibliothèque indisponible, secours actif : ':'Bibliothèque en cours de chargement : ')+(origin[state.harvestSource]||'Connexion à la moisson…')+date+' · URL candidates, pas toutes testées sur cet appareil.';
   const stats=imageCoverage(scope,state.imageRecords,state.imageTransient);
   $('image-progress').textContent=`${stats.checked.toLocaleString('fr-FR')} / ${stats.total.toLocaleString('fr-FR')} vérifiés sur cet appareil · ${stats.found.toLocaleString('fr-FR')} trouvés · ${stats.missing.toLocaleString('fr-FR')} introuvables`;
   $('image-progress-bar').max=Math.max(1,stats.total);
@@ -665,7 +698,7 @@ function imageCandidates(){
   const displayed=new Set([...$('cards-grid').querySelectorAll('.card-tile')].map(tile=>tile.dataset.id));
   for(const card of cards){
     const status=imageState(card.id,state.imageRecords,state.imageTransient);
-    if(status==='found'||(status==='missing'&&!state.harvestIndex.has(card.id))||status==='checking'||(status==='error'&&(state.imageRetryAt.get(card.id)||0)>Date.now()))continue;
+    if(imageLibrary.images.has(card.id)||state.harvestIndex.has(card.id)||status==='found'||(status==='missing'&&!state.harvestIndex.has(card.id))||status==='checking'||(status==='error'&&(state.imageRetryAt.get(card.id)||0)>Date.now()))continue;
     if(state.collection[card.id])owned.push(card);
     else if(displayed.has(card.id))visible.push(card);
     else rest.push(card);
@@ -945,6 +978,7 @@ function addExtra(id,entry){
   state.imageExtras.set(id,extras);
 }
 function candidateUrls(entry,quality){
+  if(entry?.source==='owned-library'&&imageLibrary.baseUrl&&typeof entry.url==='string'&&entry.url.startsWith(imageLibrary.baseUrl))return [{url:entry.url,entry}];
   if(entry?.source==='bundled'&&/^\.\/assets\/offline\/cards\/(?:[A-Za-z0-9_.-]+|exu-!|exu-%253F)\.(webp|png|jpg)$/.test(entry.url))return [{url:entry.url,entry}];
   const verified=trustedImageUrl(entry.url);
   if(entry.base){
@@ -962,7 +996,9 @@ function imageOptions(id,quality){
   const harvested=state.harvestIndex.get(id);
   if(record?.verificationVersion===3&&record?.missingUntil>Date.now()&&!harvested)return [];
   const candidates=[];
-  if(record?.source&&record.source!=='missing')candidates.push(record);
+  const owned=imageLibrary.images.get(id);
+  if(owned)candidates.push(owned);
+  if(record?.source&&record.source!=='missing'&&record.url!==owned?.url)candidates.push(record);
   if(harvested)candidates.push(harvested);
   if(card?.image)candidates.push({source:'tcgdex-fr',base:card.image});
   if(state.details.get(id)?.image)candidates.push({source:'tcgdex-fr',base:state.details.get(id).image});
@@ -1357,14 +1393,14 @@ function bindEvents(){
   $('jump-top').addEventListener('click',jumpTop);$('jump-bottom').addEventListener('click',jumpBottom);
   window.addEventListener('scroll',onScroll,{passive:true});
   window.addEventListener('resize',()=>{state.viewport.stride=0;requestAnimationFrame(()=>renderViewport(true));},{passive:true});
-  window.addEventListener('online',()=>{networkStatus();loadHarvestIndex();startAutomaticImageScan();});window.addEventListener('offline',()=>{networkStatus();stopScan();cancelImageScan();});
+  window.addEventListener('online',()=>{networkStatus();loadImageLibrary();loadHarvestIndex();startAutomaticImageScan();});window.addEventListener('offline',()=>{networkStatus();stopScan();cancelImageScan();});
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();state.installEvent=event;$('install-btn').hidden=false;});
   if(/iPhone|iPad|iPod/.test(navigator.userAgent)&&!navigator.standalone)$('install-btn').hidden=false;
 }
 bindEvents();applyOptions();networkStatus();updateSummary();registerSW();
-setInterval(()=>{if(navigator.onLine)loadHarvestIndex();},6*60*60*1000);
+setInterval(()=>{if(navigator.onLine){loadImageLibrary();loadHarvestIndex();}},6*60*60*1000);
 window.__pvBooted=true;
-loadOfflinePack().then(()=>Promise.allSettled([hydrateCache(),loadCatalog(),loadReviewedMarketLinks(),loadHarvestIndex()])).then(results=>{
+loadOfflinePack().then(()=>Promise.allSettled([hydrateCache(),loadCatalog(),loadReviewedMarketLinks(),loadHarvestIndex(),loadImageLibrary()])).then(results=>{
   if(results.some(result=>result.status==='rejected')){
     const errors=results.filter(result=>result.status==='rejected').map(result=>result.reason?.message||'Erreur inconnue');
     console.error('PokéVault initialisation',...errors);

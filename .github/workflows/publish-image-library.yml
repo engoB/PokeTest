@@ -1,0 +1,62 @@
+name: Publish owned image library
+on:
+  workflow_dispatch:
+    inputs:
+      pack_run_id:
+        description: 'Successful 16-shard pack workflow run ID'
+        required: true
+        type: string
+      rights_confirmed:
+        description: 'I have verified public redistribution rights for all included scans'
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    if: inputs.rights_confirmed == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download approved image shards
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.pack_run_id }}
+        run: |
+          mkdir -p artifacts
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'pokevault-image-shard-*' --dir artifacts
+      - name: Verify images and build immutable library
+        run: |
+          node scripts/collect-image-shards.mjs --artifacts artifacts --dist dist --shards 16
+          node scripts/assemble-image-pack.mjs --dir dist --shards 16
+          node scripts/publish-image-library.mjs --dir dist --out image-library-public --rights-confirmed
+      - name: Upload images first, publish manifest last
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.PV_IMAGE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.PV_IMAGE_SECRET_KEY }}
+          AWS_DEFAULT_REGION: auto
+          S3_ENDPOINT: ${{ vars.PV_IMAGE_S3_ENDPOINT }}
+          S3_BUCKET: ${{ vars.PV_IMAGE_BUCKET }}
+        run: |
+          set -euo pipefail
+          : "${AWS_ACCESS_KEY_ID:?Missing PV_IMAGE_ACCESS_KEY}"
+          : "${AWS_SECRET_ACCESS_KEY:?Missing PV_IMAGE_SECRET_KEY}"
+          : "${S3_ENDPOINT:?Missing PV_IMAGE_S3_ENDPOINT}"
+          : "${S3_BUCKET:?Missing PV_IMAGE_BUCKET}"
+          aws s3 sync image-library-public/cards "s3://$S3_BUCKET/cards" --endpoint-url "$S3_ENDPOINT" --no-progress --only-show-errors
+          aws s3 cp image-library-public/manifest.json "s3://$S3_BUCKET/manifest.json" --endpoint-url "$S3_ENDPOINT" --content-type application/json --cache-control 'public,max-age=60' --only-show-errors
+      - name: Preserve release manifest and audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokevault-owned-library-release
+          path: |
+            image-library-public/manifest.json
+            dist/assets/offline/images-assembly-report.json
+          if-no-files-found: warn

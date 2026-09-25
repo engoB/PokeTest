@@ -5,7 +5,7 @@ import {parsePrice,selectPriceVariant,restorePrice,suggestCards,cardmarketPurcha
 const read=name=>readFileSync(new URL(`../${name}`,import.meta.url),'utf8');
 test('separates normal, holo and reverse prices without silently mixing finishes',()=>{
   const quote=parsePrice({pricing:{cardmarket:{unit:'EUR',trend:1.5,avg30:2.3,'trend-holo':15,'avg30-holo':16,'trend-reverse-holo':4,updated:1780000000000}}});
-  assert.equal(quote.trend,null);assert.equal(quote.selectedVariant,null);assert.equal(quote.quotes.length,3);
+  assert.equal(quote.trend,1.5);assert.equal(quote.selectedVariant,'normal');assert.equal(quote.quotes.length,3); // Standard is now the default; other finishes stay distinct.
   assert.equal(selectPriceVariant(quote,'holo').trend,15);
   assert.equal(selectPriceVariant(quote,'reverse').trend,4);
   assert.equal(selectPriceVariant(quote,'normal').trend,1.5);

@@ -5,7 +5,7 @@ const read=name=>readFileSync(new URL(`../${name}`,import.meta.url),'utf8');
 
 test('static index loads the versioned standalone bundle instead of fragile imports',()=>{
   const index=read('index.html');
-  assert.match(index,/src="\.\/app\.bundle\.js\?v=4\.9\.0"/);
+  assert.match(index,/src="\.\/app\.bundle\.js\?v=5\.0\.0"/);
   assert.doesNotMatch(index,/type="module"/);
   assert.match(index,/window\.__pvBooted/);
 });
@@ -22,8 +22,8 @@ test('bundled runtime includes image status, collection compatibility and catalo
 
 test('PWA caches the versioned bundle and uses network-first for updated code',()=>{
   const sw=read('sw.js');
-  assert.match(sw,/pv-v4\.9/);
-  assert.match(sw,/app\.bundle\.js\?v=4\.9\.0/);
+  assert.match(sw,/pv-v5\.0/);
+  assert.match(sw,/app\.bundle\.js\?v=5\.0\.0/);
   assert.match(sw,/networkFirst\(req,SHELL\)/);
   assert.match(sw,/Image cache migration postponed/);
 });

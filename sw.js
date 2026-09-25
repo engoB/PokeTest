@@ -1,7 +1,7 @@
 /* Versioned PWA shell; API and visited images remain available offline after first load. */
-const VERSION='pv-v4.6';
+const VERSION='pv-v4.8';
 const SHELL=`${VERSION}-shell`,DATA=`${VERSION}-data`,IMAGES=`${VERSION}-images`,PACK=`${VERSION}-offline-pack`;
-const APP_FILES=['./','./index.html','./app.bundle.js?v=4.6.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./inputs/cardmarket-links.json','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
+const APP_FILES=['./','./index.html','./app.bundle.js?v=4.8.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./inputs/cardmarket-links.json','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/card-back.svg'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const shell=await caches.open(SHELL);
   await shell.addAll(APP_FILES);

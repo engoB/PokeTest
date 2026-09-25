@@ -11,10 +11,11 @@ const run=(name,args)=>execFileSync(process.execPath,[join(root,'scripts',name),
 test('Cardmarket purchase link uses exact supplied product URL or clearly labelled search',()=>{
   const card={id:'base1-4',name:'Dracaufeu',localId:'004'};
   const exact='https://www.cardmarket.com/fr/Pokemon/Products/Singles/Base-Set/Charizard-V1';
-  assert.deepEqual(cardmarketPurchaseLink(card,{pricing:{cardmarket:{url:exact}}}),{url:exact,direct:true});
+  assert.deepEqual(cardmarketPurchaseLink(card,{id:card.id,pricing:{cardmarket:{url:exact}}}),{url:exact,direct:true});
   assert.equal(cardmarketPurchaseLink(card,null,'',exact).direct,true);
   const fallback=cardmarketPurchaseLink(card,{set:{name:'Set de Base'}});
-  assert.equal(fallback.direct,false);assert.match(decodeURIComponent(fallback.url),/Dracaufeu Set de Base 004/);
+  assert.equal(fallback.direct,false);assert.match(decodeURIComponent(fallback.url),/searchString=Dracaufeu$/);
+  assert.equal(cardmarketPurchaseLink(card,{id:'another-set-4',pricing:{cardmarket:{url:exact}}}).direct,false);
   for(const bad of ['javascript:alert(1)','https://evil.com/fr/Pokemon/Products/Singles/x','https://www.cardmarket.com.evil.test/fr/Pokemon/Products/Singles/x','https://www.cardmarket.com/fr/Pokemon/Products/Search?searchString=anything'])assert.equal(safeCardmarketProductUrl(bad),null);
 });
 test('six free research links are site-specific, and exact special IDs are supported',()=>{
@@ -22,9 +23,10 @@ test('six free research links are site-specific, and exact special IDs are suppo
   assert.equal(links.length,6);for(const link of links){assert.equal(new URL(link.url).hostname,'www.google.com');assert.ok(decodeURIComponent(link.url).includes('site:'+link.domain));}
   assert.equal(safeCardId('exu-!'),true);assert.equal(safeCardId('exu-%3F'),true);assert.equal(safeCardId('exu-%2F'),false);
   const app=readFileSync(join(root,'app.js'),'utf8'),html=readFileSync(join(root,'index.html'),'utf8');
-  for(const id of ['card-search-clear','set-search-clear','dialog-buy','research-toggle'])assert.ok(html.includes(`id="${id}"`));
+  for(const id of ['card-search-clear','set-search-clear','dialog-buy','options-toggle','option-animation','option-prices','search-suggestions','price-variant'])assert.ok(html.includes(`id="${id}"`));
   assert.match(app,/function clearSearch\(id\)/);assert.match(app,/updateDialogBuy\(id,detail\)/);
   assert.match(app,/encodeURIComponent\(id\)/);
+  assert.doesNotMatch(html,/id="retry-image"|id="research-toggle"/);
 });
 test('research audit includes every unresolved FR ID, no EN-only cards, and six links',()=>{
   const tmp=mkdtempSync(join(tmpdir(),'pv-research-'));

@@ -17,14 +17,31 @@ export function numeric(value) {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
+// A Cardmarket trend is NOT the current asking price of a seller. Modern TCGdex
+// exposes separate prices by finish; never silently substitute a normal quote
+// for a holo or reverse printing.
 export function parsePrice(card) {
-  const cm = card?.pricing?.cardmarket ?? card?.cardmarket?.prices ?? card?.cardmarket;
-  if (!cm || (cm.unit && cm.unit !== 'EUR')) return null;
-  const trend = numeric(cm.trend ?? cm.trendPrice);
-  const avg30 = numeric(cm.avg30 ?? cm.avg30Price);
-  const low = numeric(cm.low ?? cm.lowPrice);
-  if (trend === null && avg30 === null && low === null) return null;
-  return {trend, avg30, low, updated:cm.updated || null, fetchedAt:Date.now()};
+  const cm=card?.pricing?.cardmarket ?? card?.cardmarket?.prices ?? card?.cardmarket;
+  if(!cm || (cm.unit && cm.unit!=='EUR'))return null;
+  const definitions=[
+    ['normal','Standard',cm.trend??cm.trendPrice,cm.avg30??cm.avg30Price,cm.low??cm.lowPrice],
+    ['holo','Holographique',cm['trend-holo']??cm.trendHolo,cm['avg30-holo']??cm.avg30Holo,cm['low-holo']??cm.lowHolo],
+    ['reverse','Reverse holographique',cm['trend-reverse-holo']??cm.trendReverseHolo,cm['avg30-reverse-holo']??cm.avg30ReverseHolo,cm['low-reverse-holo']??cm.lowReverseHolo]
+  ];
+  const quotes=definitions.map(([id,label,t,a,l])=>({id,label,trend:numeric(t),avg30:numeric(a),low:numeric(l)}))
+    .filter(q=>q.trend!==null||q.avg30!==null||q.low!==null);
+  if(!quotes.length)return null;
+  const selectedVariant=quotes.length===1?quotes[0].id:null;
+  return selectPriceVariant({quotes,selectedVariant:null,source:'tcgdex-cardmarket',updated:cm.updated||null,fetchedAt:Date.now()},selectedVariant);
+}
+export function selectPriceVariant(price,id){
+  const quote=price?.quotes?.find(q=>q.id===id);
+  return {...price,selectedVariant:quote?.id||null,trend:quote?.trend??null,avg30:quote?.avg30??null,low:quote?.low??null};
+}
+export function restorePrice(entry){
+  if(entry?.source!=='tcgdex-cardmarket'||!Array.isArray(entry.quotes))return {trend:null,avg30:null,low:null,source:'legacy-unverified',updated:null,fetchedAt:0,quotes:[],selectedVariant:null};
+  const quotes=entry.quotes.filter(q=>['normal','holo','reverse'].includes(q?.id)).map(q=>({...q,trend:numeric(q.trend),avg30:numeric(q.avg30),low:numeric(q.low)}));
+  return selectPriceVariant({...entry,quotes},entry.selectedVariant|| (quotes.length===1?quotes[0].id:null));
 }
 export function formatEuro(value) {
   return Number.isFinite(value) ? new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(value) : '—';
@@ -120,13 +137,33 @@ export function safeCardmarketProductUrl(raw){
   try{const u=new URL(raw);if(u.protocol!=='https:'||!['www.cardmarket.com','cardmarket.com'].includes(u.hostname)||u.username||u.password||u.port||!/^\/(?:fr|en|de|es|it)\/Pokemon\/Products\/Singles\//.test(u.pathname))return null;return u.href;}catch{return null;}
 }
 export function cardmarketPurchaseLink(card,detail=null,setName='',reviewedUrl=null){
-  const sources=[reviewedUrl,detail?.pricing?.cardmarket?.url,detail?.cardmarket?.url,detail?.cardmarket?.productUrl,detail?.links?.cardmarket,card?.pricing?.cardmarket?.url,card?.cardmarket?.url];
+  // A detailed URL is trusted only when the API detail has the EXACT card ID.
+  // Reviewed mappings are keyed by the same exact ID; no fuzzy product guessing.
+  const sources=[reviewedUrl,...(detail?.id===card?.id?[detail?.pricing?.cardmarket?.url,detail?.cardmarket?.url,detail?.cardmarket?.productUrl,detail?.links?.cardmarket]:[]),card?.pricing?.cardmarket?.url,card?.cardmarket?.url];
   for(const raw of sources){const url=safeCardmarketProductUrl(raw);if(url)return {url,direct:true};}
-  const name=String(detail?.name||card?.name||'').trim();
-  const number=String(detail?.localId||card?.localId||'').trim();
-  const set=String(detail?.set?.name||setName||card?.set?.name||'').trim();
-  const query=[name,set,number].filter(Boolean).join(' ');
-  return {url:`https://www.cardmarket.com/fr/Pokemon/Products/Search?searchString=${encodeURIComponent(query)}`,direct:false};
+  // Cardmarket's own search is name-oriented: including set AND number can
+  // result in zero hits, even when the card is on sale. Search broadly, then
+  // show the exact expansion/number to compare on the results page.
+  const name=String(card?.name||detail?.name||'').trim();
+  return {url:`https://www.cardmarket.com/fr/Pokemon/Products/Search?searchString=${encodeURIComponent(name)}`,direct:false};
+}
+export function targetedCardmarketSearch(card,setName=''){
+  const q=['site:cardmarket.com/fr/Pokemon/Products/Singles/',card?.name,setName,card?.localId].filter(Boolean).join(' ');
+  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+}
+// Small bounded, synchronous suggestions; the catalogue is already loaded in
+// memory, so typing never sends an API request or waits for a debounce.
+export function suggestCards(cards,raw,limit=8){
+  const q=normalize(raw);if(!q||!Array.isArray(cards))return [];
+  const buckets=[[],[],[]];
+  for(const card of cards){
+    const name=card._searchName??normalize(card.name);
+    const hay=card._searchKey??normalize(`${card.name} ${card.localId} ${card.id}`);
+    const id=normalize(card.localId);
+    const rank=name.startsWith(q)||id===q?0:name.includes(q)?1:hay.includes(q)?2:-1;
+    if(rank>=0&&buckets[rank].length<limit)buckets[rank].push(card);
+  }
+  return buckets.flat().slice(0,limit);
 }
 export const IMAGE_RESEARCH_SOURCES=Object.freeze([
   {key:'pkmncards',name:'PkmnCards',domain:'pkmncards.com'},

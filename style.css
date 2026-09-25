@@ -84,3 +84,89 @@
 .search-wrap input::-webkit-search-cancel-button,.set-search-wrap input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
 .marketplace-link{display:inline-flex;justify-content:center;align-items:center;text-align:center;text-decoration:none;min-height:42px;margin-top:.2rem}
 .price-panel .marketplace-link{font-size:.83rem}.research-panel{display:flex;flex-direction:column;gap:.55rem}.research-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.research-links[hidden]{display:none!important}.research-links a{color:var(--accent);font-size:.78rem;border:1px solid var(--outline);padding:.65rem;border-radius:9px;text-decoration:none}.research-links a:hover{background:#ffffff12}
+
+/* PokéVault 4.8 — édition collection : bleu nuit, or et rouge Poké Ball. */
+:root{--bg:#091329;--surface:#142440;--elevated:#1e3355;--outline:#38547c;--text:#f8f7f2;--muted:#b6c6de;--accent:#ffda70;--accent-dark:#4b3819;--radius:18px;--shadow:0 16px 42px #01081999}
+body{background:radial-gradient(ellipse 80% 40% at 12% 0%,#263f70 0%,transparent 75%),radial-gradient(ellipse 70% 32% at 96% 18%,#2c2d59 0%,transparent 76%),var(--bg);background-attachment:fixed}
+.topbar{background:linear-gradient(110deg,#071329f5,#122951f2 62%,#101b39f5);border-bottom:1px solid #f5c85d70;box-shadow:0 5px 24px #030a2070}
+.brand{letter-spacing:-.045em;font-weight:900;text-shadow:0 2px 12px #0005}
+.brand-highlight{color:#ffdf77}
+.brand-mark{position:relative;border-radius:50%;background:linear-gradient(#f55250 0 46%,#101d35 47% 54%,#f7f5ed 55% 100%);border:2px solid #fbe3a5;box-shadow:0 2px 0 #070e20,0 0 18px #f3b64d5c;color:transparent;transform:rotate(-17deg)}
+.brand-mark::after{content:'';position:absolute;left:50%;top:50%;width:10px;height:10px;border-radius:50%;background:#fff7d8;border:3px solid #1c2740;transform:translate(-50%,-50%);box-shadow:0 0 0 2px #f5ce74}
+.sidebar{background:linear-gradient(175deg,#0f1e38aa,#09162c30);border-right:1px solid #d9b95e33}
+.set-button.is-selected,.set-button:hover{background:#243a5d;border-color:#d7b85c6b}
+.main-top{padding:1.5rem 1.6rem;border:1px solid #e7bf5a5c;border-radius:22px;background:radial-gradient(circle at 96% 0%,#e1af4225,transparent 42%),linear-gradient(135deg,#1a3052,#101e3a 67%,#172445);box-shadow:0 14px 45px #030a2066, inset 0 1px #fff2}
+.main-top h1{font-weight:900;letter-spacing:-.045em;color:#fff6d8}
+.main-top .eyebrow,.accent{color:#ffdc78!important}
+.summary{background:linear-gradient(145deg,#263e62,#14233d);border-color:#d9bb5a5c;box-shadow:inset 0 1px #fff2,0 8px 24px #01071988}
+.summary strong{color:#fff3c7}
+.tabs{border-bottom-color:#d9b65a40}.tab.is-active{border-bottom-color:#f3ce67;color:#ffe6a2}
+.search-wrap{z-index:4}.search-wrap input,.set-search-wrap input{background:#12223e;border-color:#6883a6;color:#fff9e8;box-shadow:inset 0 2px 7px #0004}
+.search-wrap input:focus{border-color:#f5d06c;box-shadow:0 0 0 3px #f1c96a33}
+.search-clear{color:#ffe7a2}.segmented,.layout-switch{background:#152542;border-color:#3b5275}
+.segmented button.is-active,.layout-switch button.is-active{background:#3d5073;color:#fff4c6}
+.button-primary{background:linear-gradient(130deg,#ffe28d,#e9b847);color:#172139;border:1px solid #ffe9a3;font-weight:850;box-shadow:0 3px 0 #9e722d70}
+.button-primary:hover{background:linear-gradient(130deg,#fff1bd,#f5cb68)}
+.button-soft{background:#253b5a;color:#fff0bb;border-color:#cba85065}
+.card-tile{border:1px solid #b69d576b;background:linear-gradient(165deg,#223658,#142440 60%,#10203b);box-shadow:inset 0 1px #fff2,0 6px 18px #03091d55;transition:border-color .25s,box-shadow .25s}
+.card-tile:hover{transform:none;border-color:#f7d17b;box-shadow:0 10px 26px #02091b99,0 0 0 1px #f7d17b40}
+.card-tile[data-owned=true]{border-color:#f2d577;box-shadow:0 0 0 1px #f4d97942,0 8px 24px #0006}
+.card-open{transform-origin:center center;backface-visibility:hidden;transform-style:preserve-3d;border:1px solid #e4c97754;box-shadow:0 4px 15px #0007}
+.card-open::after{content:'';position:absolute;inset:-55%;z-index:1;pointer-events:none;opacity:0;background:linear-gradient(112deg,transparent 35%,#fff4c644 49%,transparent 64%);transform:translateX(-25%);transition:opacity .25s,transform .4s}
+.card-open:hover::after{opacity:.7;transform:translateX(18%)}
+.price-pill{z-index:2;background:#101d3de8;border:1px solid #f2d27a91;color:#ffebae}
+.owned-pill{z-index:2;background:#f1c95e;color:#15243d}
+.qty-btn.add{background:#473b24;color:#ffe69b;border-color:#d3af59}
+.dialog{background:linear-gradient(155deg,#1a3050,#111e37);border-color:#e4bf665c}
+.dialog-media{background:radial-gradient(circle at 32% 15%,#5572a0 0%,#243d64 40%,#0b1934 95%)}
+.price-panel{background:#0e1e39;border:1px solid #c4a76070}
+.price-panel>strong{color:#ffdc79}
+.marketplace-panel{display:flex;flex-direction:column;gap:.6rem;margin-top:.5rem;padding:1rem;background:#172e4a;border:1px solid #7194bc69;border-radius:15px}
+.marketplace-identity{font-size:.82rem;color:#ffe6a0;font-weight:750;margin:.15rem 0}
+.marketplace-panel small{line-height:1.55;font-size:.7rem;color:#c8d5e8}
+.marketplace-secondary{font-size:.76rem;color:#ffdf83;text-decoration:underline;text-underline-offset:3px}
+.price-variant-label{color:#ffe2a0;font-size:.77rem;font-weight:700}
+.price-variant-row{display:flex;flex-direction:column;gap:.35rem;font-size:.78rem;color:#d6e4f5}
+.price-variant-row select{width:100%;padding:.65rem .7rem;border-radius:10px;border:1px solid #c7aa5c;background:#15294a;color:#fff5d4}
+.price-coverage{background:linear-gradient(125deg,#233b60,#132544);border-color:#c2a6626b}
+.price-coverage-heading span{color:#ffdb7e}
+.price-coverage progress::-webkit-progress-value{background:#e7bf5c}.price-coverage progress::-moz-progress-bar{background:#e7bf5c}
+/* Preferences are persistent and only affect presentation. */
+.options-wrap{position:relative}.options-trigger{white-space:nowrap}
+.options-panel{position:absolute;right:0;top:calc(100% + 12px);z-index:90;width:min(325px,calc(100vw - 2rem));padding:1.15rem;border-radius:17px;background:#172a49;border:1px solid #f0ce786b;box-shadow:0 20px 50px #020b21d9}
+.options-panel>strong{display:block;font-size:.96rem;color:#fff0bf;margin-bottom:.85rem}
+.option-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.8rem 0;border-top:1px solid #f2d17d2b;cursor:pointer}
+.option-row span{display:flex;flex-direction:column;gap:.23rem}.option-row b{font-size:.84rem}.option-row small{color:#afc5e2;font-size:.72rem}.option-row input{appearance:none;position:relative;flex:none;width:43px;height:24px;border-radius:50px;background:#485873;border:1px solid #91a1b7;cursor:pointer;transition:background .18s}
+.option-row input::before{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .18s}
+.option-row input:checked{background:#c89a35;border-color:#ffdd84}.option-row input:checked::before{transform:translateX(19px)}
+.options-panel p{font-size:.69rem;color:#a9c0dd;line-height:1.5;margin:.7rem 0 0}
+.pv-prices-off .price-pill,.pv-prices-off .price-panel,.pv-prices-off .header-portfolio,.pv-prices-off .price-coverage,.pv-prices-off .price-hint{display:none!important}
+/* Immediate, keyboard-accessible results under the search input. */
+.search-suggestions{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:50;max-height:min(60vh,455px);overflow-y:auto;border:1px solid #f0cc78aa;border-radius:14px;background:#142746;box-shadow:0 18px 38px #000b;padding:.32rem}
+.suggestion-item{display:flex;align-items:center;gap:.7rem;width:100%;padding:.66rem .7rem;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;color:#f5f8ff}
+.suggestion-item:hover,.suggestion-item.is-active{background:#32486a;border-color:#e6bf6666}
+.suggestion-ball{display:grid;place-items:center;width:32px;height:32px;flex:none;border-radius:50%;background:linear-gradient(#ef5654 0 45%,#14233c 46% 55%,#fff6e7 56%);border:2px solid #e9ce80;color:#152a47;font-size:.8rem;box-shadow:0 2px 7px #0008}
+.suggestion-main{display:flex;flex-direction:column;min-width:0;gap:.2rem}.suggestion-main strong{font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.suggestion-main small{font-size:.72rem;color:#c1d1e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.suggestion-open{margin-left:auto;color:#f9d478}.suggestion-empty{padding:.7rem .85rem;margin:0;color:#c1d1e8;font-size:.78rem}
+/* Tiny idle rotation and pointer-following tilt, without changing grid row height. */
+@keyframes pv-card-idle{0%,100%{transform:rotateZ(-.35deg) translateY(0)}50%{transform:rotateZ(.35deg) translateY(-2px)}}
+@media(hover:hover) and (pointer:fine){.pv-motion-on .card-open{animation:pv-card-idle 6s ease-in-out infinite;animation-delay:var(--card-delay,0ms)}.pv-motion-on .card-tile:hover .card-open{animation:none;transform:perspective(950px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)) translateY(-3px);transition:transform .14s ease-out;box-shadow:0 12px 25px #000a,0 0 14px #f6d67c45}}
+@media(prefers-reduced-motion:reduce){.pv-motion-on .card-open{animation:none!important;transform:none!important}.card-open::after{display:none}}
+@media(max-width:750px){.main-top{padding:1.1rem}.options-panel{right:-.6rem}.options-trigger{padding:.55rem .65rem;font-size:.75rem}.topbar-inner{gap:.5rem}.header-actions{gap:.4rem}}
+@media(max-width:420px){.options-trigger{font-size:0}.options-trigger::before{content:'⚙';font-size:1.1rem}.topbar-inner{gap:.45rem}.brand{font-size:1rem}}
+/* Keep clickable card frames stationary; animate the artwork inside instead.
+   This also avoids shifting the virtual grid's click targets. */
+@media(hover:hover) and (pointer:fine){
+  .pv-motion-on .card-open{animation:none}
+  .pv-motion-on .card-open img.is-loaded{animation:pv-card-idle 6s ease-in-out infinite;animation-delay:var(--card-delay,0ms)}
+  .pv-motion-on .card-tile:hover .card-open img.is-loaded{animation:none}
+}
+
+/* Collection actions stay visible above the valuation and marketplace panels. */
+.dialog-content .quantity-panel{margin-top:.2rem;padding:.55rem .15rem .65rem;border-top:1px solid #f4d47a35;border-bottom:1px solid #f4d47a35}
+.dialog-content{gap:.62rem;padding:1.7rem 1.4rem 1.4rem}
+.dialog-content .price-panel{margin-top:.25rem;padding:.95rem}
+.dialog-content .marketplace-panel{padding:.9rem;gap:.45rem}
+@media(max-width:590px){.dialog-content{padding:1rem 1.1rem 1.2rem}}
+
+.price-match-warning{display:block;border-left:3px solid #ffcf6d;padding:.45rem .65rem;background:#f0b43a12;color:#ffe6b5;font-size:.69rem;line-height:1.45;border-radius:4px}

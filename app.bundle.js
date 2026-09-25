@@ -20,14 +20,31 @@ function numeric(value) {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
+// A Cardmarket trend is NOT the current asking price of a seller. Modern TCGdex
+// exposes separate prices by finish; never silently substitute a normal quote
+// for a holo or reverse printing.
 function parsePrice(card) {
-  const cm = card?.pricing?.cardmarket ?? card?.cardmarket?.prices ?? card?.cardmarket;
-  if (!cm || (cm.unit && cm.unit !== 'EUR')) return null;
-  const trend = numeric(cm.trend ?? cm.trendPrice);
-  const avg30 = numeric(cm.avg30 ?? cm.avg30Price);
-  const low = numeric(cm.low ?? cm.lowPrice);
-  if (trend === null && avg30 === null && low === null) return null;
-  return {trend, avg30, low, updated:cm.updated || null, fetchedAt:Date.now()};
+  const cm=card?.pricing?.cardmarket ?? card?.cardmarket?.prices ?? card?.cardmarket;
+  if(!cm || (cm.unit && cm.unit!=='EUR'))return null;
+  const definitions=[
+    ['normal','Standard',cm.trend??cm.trendPrice,cm.avg30??cm.avg30Price,cm.low??cm.lowPrice],
+    ['holo','Holographique',cm['trend-holo']??cm.trendHolo,cm['avg30-holo']??cm.avg30Holo,cm['low-holo']??cm.lowHolo],
+    ['reverse','Reverse holographique',cm['trend-reverse-holo']??cm.trendReverseHolo,cm['avg30-reverse-holo']??cm.avg30ReverseHolo,cm['low-reverse-holo']??cm.lowReverseHolo]
+  ];
+  const quotes=definitions.map(([id,label,t,a,l])=>({id,label,trend:numeric(t),avg30:numeric(a),low:numeric(l)}))
+    .filter(q=>q.trend!==null||q.avg30!==null||q.low!==null);
+  if(!quotes.length)return null;
+  const selectedVariant=quotes.length===1?quotes[0].id:null;
+  return selectPriceVariant({quotes,selectedVariant:null,source:'tcgdex-cardmarket',updated:cm.updated||null,fetchedAt:Date.now()},selectedVariant);
+}
+function selectPriceVariant(price,id){
+  const quote=price?.quotes?.find(q=>q.id===id);
+  return {...price,selectedVariant:quote?.id||null,trend:quote?.trend??null,avg30:quote?.avg30??null,low:quote?.low??null};
+}
+function restorePrice(entry){
+  if(entry?.source!=='tcgdex-cardmarket'||!Array.isArray(entry.quotes))return {trend:null,avg30:null,low:null,source:'legacy-unverified',updated:null,fetchedAt:0,quotes:[],selectedVariant:null};
+  const quotes=entry.quotes.filter(q=>['normal','holo','reverse'].includes(q?.id)).map(q=>({...q,trend:numeric(q.trend),avg30:numeric(q.avg30),low:numeric(q.low)}));
+  return selectPriceVariant({...entry,quotes},entry.selectedVariant|| (quotes.length===1?quotes[0].id:null));
 }
 function formatEuro(value) {
   return Number.isFinite(value) ? new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(value) : '—';
@@ -123,13 +140,33 @@ function safeCardmarketProductUrl(raw){
   try{const u=new URL(raw);if(u.protocol!=='https:'||!['www.cardmarket.com','cardmarket.com'].includes(u.hostname)||u.username||u.password||u.port||!/^\/(?:fr|en|de|es|it)\/Pokemon\/Products\/Singles\//.test(u.pathname))return null;return u.href;}catch{return null;}
 }
 function cardmarketPurchaseLink(card,detail=null,setName='',reviewedUrl=null){
-  const sources=[reviewedUrl,detail?.pricing?.cardmarket?.url,detail?.cardmarket?.url,detail?.cardmarket?.productUrl,detail?.links?.cardmarket,card?.pricing?.cardmarket?.url,card?.cardmarket?.url];
+  // A detailed URL is trusted only when the API detail has the EXACT card ID.
+  // Reviewed mappings are keyed by the same exact ID; no fuzzy product guessing.
+  const sources=[reviewedUrl,...(detail?.id===card?.id?[detail?.pricing?.cardmarket?.url,detail?.cardmarket?.url,detail?.cardmarket?.productUrl,detail?.links?.cardmarket]:[]),card?.pricing?.cardmarket?.url,card?.cardmarket?.url];
   for(const raw of sources){const url=safeCardmarketProductUrl(raw);if(url)return {url,direct:true};}
-  const name=String(detail?.name||card?.name||'').trim();
-  const number=String(detail?.localId||card?.localId||'').trim();
-  const set=String(detail?.set?.name||setName||card?.set?.name||'').trim();
-  const query=[name,set,number].filter(Boolean).join(' ');
-  return {url:`https://www.cardmarket.com/fr/Pokemon/Products/Search?searchString=${encodeURIComponent(query)}`,direct:false};
+  // Cardmarket's own search is name-oriented: including set AND number can
+  // result in zero hits, even when the card is on sale. Search broadly, then
+  // show the exact expansion/number to compare on the results page.
+  const name=String(card?.name||detail?.name||'').trim();
+  return {url:`https://www.cardmarket.com/fr/Pokemon/Products/Search?searchString=${encodeURIComponent(name)}`,direct:false};
+}
+function targetedCardmarketSearch(card,setName=''){
+  const q=['site:cardmarket.com/fr/Pokemon/Products/Singles/',card?.name,setName,card?.localId].filter(Boolean).join(' ');
+  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+}
+// Small bounded, synchronous suggestions; the catalogue is already loaded in
+// memory, so typing never sends an API request or waits for a debounce.
+function suggestCards(cards,raw,limit=8){
+  const q=normalize(raw);if(!q||!Array.isArray(cards))return [];
+  const buckets=[[],[],[]];
+  for(const card of cards){
+    const name=card._searchName??normalize(card.name);
+    const hay=card._searchKey??normalize(`${card.name} ${card.localId} ${card.id}`);
+    const id=normalize(card.localId);
+    const rank=name.startsWith(q)||id===q?0:name.includes(q)?1:hay.includes(q)?2:-1;
+    if(rank>=0&&buckets[rank].length<limit)buckets[rank].push(card);
+  }
+  return buckets.flat().slice(0,limit);
 }
 const IMAGE_RESEARCH_SOURCES=Object.freeze([
   {key:'pkmncards',name:'PkmnCards',domain:'pkmncards.com'},
@@ -232,6 +269,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state={
   allSets:[],allCards:[],cards:[],catalogStatus:'loading',cardIndex:new Map(),selectedSet:'all',status:'all',type:'all',sort:'number',
   layout:'comfortable',collection:{},prices:{},marketLinks:new Map(),db:null,dirtyPrices:new Set(),details:new Map(),pendingDetails:new Map(),
+  options:{animateCards:true,showPrices:true},suggestions:[],suggestionIndex:-1,
   imageRecords:new Map(),imageExtras:new Map(),imageFailures:new Map(),imageRetryAt:new Map(),imageRetryCount:new Map(),pendingFallback:new Map(),english:new Map(),
   tileCache:new Map(),imageProviderErrors:new Set(),imageTransient:new Map(),imageScanToken:0,imageScanning:false,imagePaused:false,imageScanScope:[],imageScanLimit:0,
   pendingEnglish:new Map(),imageCoverageTimer:0,imageAutoTimer:0,
@@ -248,12 +286,14 @@ function saveCollection(next){
 // Never clear or migrate pv_collection on startup. Old installations retain their cards.
 state.collection=readCollection(storage('pv_collection',{}));
 state.imagePaused=storage('pv_image_scan_paused',false)===true;
+const savedOptions=storage('pv_options_v1',{});
+state.options={animateCards:savedOptions.animateCards!==false,showPrices:savedOptions.showPrices!==false};
 for(const [id,p] of Object.entries(storage('pv_prices',{}))){
   const trend=numeric(p?.trend);
-  if(trend!==null)state.prices[id]={trend,avg30:numeric(p.avg30),low:numeric(p.low),fetchedAt:0,updated:null};
+  if(trend!==null)state.prices[id]=restorePrice(p); // Old cached quotes lack a verified finish: re-fetch them.
 }
 for(const [id,p] of Object.entries(storage('pv_prices_v2',{}))){
-  if(p&&typeof p==='object')state.prices[id]={trend:numeric(p.trend),avg30:numeric(p.avg30),low:numeric(p.low),fetchedAt:Number(p.fetchedAt)||0,updated:p.updated||null};
+  if(p&&typeof p==='object')state.prices[id]=restorePrice(p);
 }
 
 function showToast(message){const el=$('toast');el.textContent=message;el.hidden=false;clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>el.hidden=true,3600);}
@@ -322,14 +362,14 @@ async function loadOfflinePack(){
     }
   }
 }
-function isFresh(id){const time=state.prices[id]?.fetchedAt;return Boolean(time&&Date.now()-time<PRICE_TTL);}
-function trend(id){const value=state.prices[id]?.trend;return Number.isFinite(value)?value:null;}
+function isFresh(id){const p=state.prices[id];return Boolean(p?.source==='tcgdex-cardmarket'&&p.fetchedAt&&Date.now()-p.fetchedAt<PRICE_TTL);}
+function trend(id){const p=state.prices[id];return p?.source==='tcgdex-cardmarket'&&p.selectedVariant&&Number.isFinite(p.trend)?p.trend:null;}
 function networkStatus(){const offline=!navigator.onLine;$('network-indicator').hidden=!offline;if(offline)$('network-indicator').textContent='Hors connexion · cache local';}
 
 async function hydrateCache(){
   state.db=await openCache();
   const [prices,images]=await Promise.all([loadCache(state.db,'prices'),loadCache(state.db,'images')]);
-  for(const {id,...entry} of prices){if((entry.fetchedAt||0)>(state.prices[id]?.fetchedAt||0))state.prices[id]=entry;}
+  for(const {id,...entry} of prices){if((entry.fetchedAt||0)>(state.prices[id]?.fetchedAt||0))state.prices[id]=restorePrice(entry);}
   for(const {id,...entry} of images)if(!offlinePack.images[id]&&(entry.checkedAt||0)>(state.imageRecords.get(id)?.checkedAt||0))state.imageRecords.set(id,entry);
   // Browsers in private mode can deny IndexedDB. Preserve a small localStorage fallback.
   if(!state.db)for(const [id,entry] of Object.entries(storage('pv_image_resolutions_v1',{})))if(!offlinePack.images[id])state.imageRecords.set(id,entry);
@@ -348,7 +388,8 @@ function flushPricesSoon(){clearTimeout(priceFlushTimer);priceFlushTimer=setTime
 },850);}
 function rememberPrice(id,detail){
   const parsed=parsePrice(detail);
-  state.prices[id]=parsed||{trend:null,avg30:null,low:null,updated:null,fetchedAt:Date.now()};
+  const previous=state.prices[id];
+  state.prices[id]=parsed?(previous?.selectedVariant&&parsed.quotes.some(q=>q.id===previous.selectedVariant)?selectPriceVariant(parsed,previous.selectedVariant):parsed):{trend:null,avg30:null,low:null,quotes:[],selectedVariant:null,source:'tcgdex-cardmarket',updated:null,fetchedAt:Date.now()};
   state.dirtyPrices.add(id);flushPricesSoon();updateTilePrice(id);
   if(state.inspected===id)updateDialogPrice(id);
   if(state.collection[id])updateSummary();
@@ -363,7 +404,7 @@ function updateSummary(){
   $('owned-total').textContent=count.toLocaleString('fr-FR');
   $('owned-unique').textContent=unique.toLocaleString('fr-FR');
   $('portfolio-value').textContent=formatEuro(value);
-  $('portfolio-value').title=`${valued} référence(s) cotée(s) sur ${unique}. Estimation indicative.`;
+  $('portfolio-value').title=`${valued} référence(s) cotée(s) sur ${unique}. Estimation indicative, correspondance produit non garantie.`;
 }
 function closeSidebar(){$('sidebar').classList.remove('is-open');$('sidebar-scrim').hidden=true;$('sidebar-open').setAttribute('aria-expanded','false');}
 function openSidebar(){$('sidebar').classList.add('is-open');$('sidebar-scrim').hidden=false;$('sidebar-open').setAttribute('aria-expanded','true');$('sidebar-close').focus();}
@@ -374,7 +415,7 @@ function renderSets(){
   $('all-sets').classList.toggle('is-selected',state.selectedSet==='all');
   $('all-sets').setAttribute('aria-pressed',String(state.selectedSet==='all'));
 }
-function indexCards(cards){for(const card of cards)state.cardIndex.set(card.id,card);}
+function indexCards(cards){for(const card of cards){state.cardIndex.set(card.id,card);card._searchName=normalize(card.name);card._searchKey=normalize(`${card.name} ${card.localId} ${card.id}`);}}
 function cancelScan(){state.scanToken++;state.scanning=false;state.scanAll=false;}
 async function loadCatalog(){
   const seq=++state.requestId;
@@ -392,9 +433,9 @@ async function loadCatalog(){
     $('empty-state').querySelector('h2').textContent='Aucune carte trouvée';
     $('empty-state').querySelector('p').textContent='Modifiez votre recherche ou vos filtres.';
     $('clear-filters').textContent='Réinitialiser les filtres';delete $('clear-filters').dataset.action;
-    refreshResults();startAutomaticImageScan();
+    refreshResults();updateSuggestions();startAutomaticImageScan();
     // Owned cards get priority for portfolio accuracy without touching the collection itself.
-    for(const id of Object.keys(state.collection).slice(0,60))if(!isFresh(id))requestDetail(id).catch(()=>{});
+    if(state.options.showPrices)for(const id of Object.keys(state.collection).slice(0,60))if(!isFresh(id))requestDetail(id).catch(()=>{});
   }else{
     state.catalogStatus='error';
     state.cards=[];refreshResults();$('counter').textContent='Catalogue indisponible : vérifiez votre connexion ou réessayez.';
@@ -422,7 +463,7 @@ async function selectSet(id){
 function baseScope(){
   const query=normalize($('card-search').value);
   return state.cards.filter(c=>{
-    if(query&&!normalize(`${c.name} ${c.localId} ${c.id}`).includes(query))return false;
+    if(query&&!(c._searchKey??normalize(`${c.name} ${c.localId} ${c.id}`)).includes(query))return false;
     const quantity=state.collection[c.id]||0;
     if(state.status==='owned'&&!quantity)return false;
     if(state.status==='missing'&&quantity)return false;
@@ -430,7 +471,7 @@ function baseScope(){
     return cardMatchesType(c,state.type,trend(c.id));
   });
 }
-function needsScan(){return state.sort.startsWith('price')||['over10','over50','illustration','secret'].includes(state.type);}
+function needsScan(){return (state.options.showPrices&&(state.sort.startsWith('price')||['over10','over50'].includes(state.type)))||['illustration','secret'].includes(state.type);}
 function refreshResults({keepScroll=false}={}){
   state.scope=baseScope();
   const filtered=state.scope.filter(c=>cardMatchesType(c,state.type,trend(c.id)));
@@ -451,7 +492,7 @@ function refreshResults({keepScroll=false}={}){
   if(!keepScroll)updateScrollTools();
 }
 function updateCoverage(){
-  const active=needsScan();$('price-coverage').hidden=!active;
+  const active=state.options.showPrices&&needsScan();$('price-coverage').hidden=!active;
   if(!active)return;
   const stats=priceCoverage(state.scope,state.prices);
   $('price-progress').textContent=`${stats.checked.toLocaleString('fr-FR')} / ${stats.total.toLocaleString('fr-FR')} fiches vérifiées · ${stats.quoted.toLocaleString('fr-FR')} cotées${stats.missing?' · '+stats.missing+' sans cote':''}`;
@@ -536,7 +577,7 @@ function markImageStatus(id,status){
 function imageLabel(id){
   if(offlinePack.sealed&&!offlinePack.images[id])return 'Visuel non embarqué';
   const status=imageState(id,state.imageRecords,state.imageTransient);
-  return status==='checking'?'Recherche en cours…':status==='missing'?'Aucun visuel trouvé':status==='error'?'Recherche à reprendre':status==='found'?'':'Recherche non commencée';
+  return status==='checking'?'Recherche en cours…':status==='missing'?'Aucun visuel trouvé':status==='error'?'Nouvel essai automatique prévu':status==='found'?'':'Recherche non commencée';
 }
 function cancelImageScan(){state.imageScanToken++;state.imageScanning=false;clearTimeout(state.imageAutoTimer);scheduleImageCoverage();}
 function stopImageScan(){state.imagePaused=true;try{localStorage.setItem('pv_image_scan_paused','true');}catch{}cancelImageScan();}
@@ -720,7 +761,7 @@ function renderViewport(force=false){
       image.addEventListener('error',()=>onImageError(image));
     }
     tile.setAttribute('aria-posinset',String(range.start+i+1));
-    const price=tile.querySelector('[data-role=price]');if(price)price.textContent=trend(card.id)===null?'Cote —':formatEuro(trend(card.id));
+    const price=tile.querySelector('[data-role=price]');if(price){const p=state.prices[card.id];price.textContent=trend(card.id)===null?(p?.quotes?.length>1?'Choisir finition':'Cote —'):formatEuro(trend(card.id));price.title=p?.selectedVariant?`Cote indicative TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}
     const qty=state.collection[card.id]||0;tile.dataset.owned=String(qty>0);
     const owned=tile.querySelector('[data-role=owned]');if(qty){if(owned)owned.textContent=`×${qty}`;else tile.querySelector('.card-open').insertAdjacentHTML('beforeend',`<span class="owned-pill" data-role="owned">×${qty}</span>`);}else owned?.remove();
     tile.querySelector('[data-action=minus]').hidden=!qty;
@@ -777,9 +818,9 @@ function ghostMarkup(id){return `<div class="card-ghost" aria-hidden="true"><spa
 function cardMarkup(c,index){
   const quantity=state.collection[c.id]||0;
   const p=trend(c.id);
-  return `<article class="card-tile" aria-posinset="${index+1}" aria-setsize="${state.display.length}" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup(c.id)}<img class="card-art" alt="Illustration de ${escapeHtml(c.name)}" loading="lazy" decoding="async" hidden><span class="price-pill" data-role="price">${p!==null?formatEuro(p):'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;
+  return `<article class="card-tile" aria-posinset="${index+1}" aria-setsize="${state.display.length}" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" style="--card-delay:${(index%13)*-170}ms" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup(c.id)}<img class="card-art" alt="Illustration de ${escapeHtml(c.name)}" loading="lazy" decoding="async" hidden><span class="price-pill" data-role="price">${p!==null?formatEuro(p):state.prices[c.id]?.quotes?.length>1?'Choisir finition':'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;
 }
-function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const el=tile.querySelector('[data-role=price]');if(el)el.textContent=trend(id)===null?'Cote —':formatEuro(trend(id));}}
+function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const el=tile.querySelector('[data-role=price]');if(el){const p=state.prices[id];el.textContent=trend(id)===null?(p?.quotes?.length>1?'Choisir finition':'Cote —'):formatEuro(trend(id));el.title=p?.selectedVariant?`Cote indicative TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}}}
 function updateTileQuantity(id){
   const quantity=state.collection[id]||0;
   for(const tile of $('cards-grid').querySelectorAll('.card-tile')){
@@ -1008,25 +1049,17 @@ function activateTile(tile){
     if(!nextImage(img,id))findFallbackForElement(img,id);
   }
   // Only visible cards request details; price-mode scanning is a separate bounded operation.
-  if(!isFresh(id))requestDetail(id,true).catch(()=>{});
-}
-async function retryImage(){
-  const id=state.inspected;if(!id)return;
-  state.imageFailures.delete(id);state.imageProviderErrors.delete(id);state.altChecked.delete(id);state.altAttempted.delete(id);state.english.delete(id);state.imageExtras.delete(id);
-  forgetImage(id);state.imageTransient.delete(id);scheduleImageCoverage();$('dialog-image').__tried=new Set();$('dialog-image').classList.remove('is-loaded');
-  $('dialog-image').hidden=true;showToast('Nouvelle recherche de l’illustration…');
-  if(!nextImage($('dialog-image'),id))await ensureFallback(id,{force:true});
-  applyImageToVisible(id);
+  if((state.options.showPrices||['illustration','secret'].includes(state.type))&&!isFresh(id))requestDetail(id,true).catch(()=>{});
 }
 function updateImageSource(id){
   const source=state.imageRecords.get(id)?.source;
   const status=imageState(id,state.imageRecords,state.imageTransient);
   $('dialog-image-source').textContent=status==='checking'?'Illustration : recherche en cours…'
-    :status==='error'?'Illustration : recherche incomplète, réessayer'
+    :status==='error'?'Illustration : nouvel essai automatique prévu'
     :status==='pending'?'Illustration : pas encore vérifiée'
     :source==='bundled'?'Illustration : intégrée à l’application'
     :source==='pokemon-tcg-api'?'Illustration : Pokémon TCG API (source secondaire)'
-    :source==='tcgdex-en'?'Illustration : TCGdex EN':source==='missing'?'Illustration introuvable · verso provisoire':'Illustration : TCGdex';
+    :source==='tcgdex-en'?'Illustration : TCGdex EN':source==='missing'?'Illustration non trouvée · recherche automatique ultérieure':'Illustration : TCGdex';
 }
 
 function updateDialogQuantity(id){const quantity=state.collection[id]||0;$('dialog-quantity').textContent=`${quantity} exemplaire${quantity>1?'s':''}`;$('dialog-minus').disabled=quantity===0;}
@@ -1041,29 +1074,38 @@ async function loadReviewedMarketLinks(){
 function updateDialogBuy(id,detail=null){
   const card=state.cardIndex.get(id);if(!card)return;
   const set=state.allSets.find(s=>id.startsWith(`${s.id}-`));
-  const link=cardmarketPurchaseLink(card,detail,set?.name||'',state.marketLinks.get(id));
+  const name=detail?.set?.name||set?.name||'';
+  const link=cardmarketPurchaseLink(card,detail,name,state.marketLinks.get(id));
+  $('dialog-card-identity').textContent=`${card.name} · ${name||'Extension non précisée'} · n° ${card.localId}`;
+  $('price-match-warning').textContent=link.direct?'Un lien produit est référencé, mais la cote statistique peut différer des annonces pour votre langue, état ou tirage.':'Correspondance produit non confirmée : TCGdex peut associer la cote à un autre tirage. Ne comparez pas directement ce montant aux annonces ouvertes par la recherche.';
   const a=$('dialog-buy');a.href=link.url;
-  a.textContent=link.direct?'Voir cette carte sur Cardmarket ↗':'Rechercher cette carte sur Cardmarket ↗';
-  $('dialog-buy-note').textContent=link.direct?'Fiche du produit : vérifiez la variante, la langue, l’état et le prix affiché.':'Recherche par nom, extension et numéro : vérifiez la bonne édition avant d’acheter.';
-}
-function updateResearchLinks(id,detail=null){
-  const card=state.cardIndex.get(id);if(!card)return;
-  const set=state.allSets.find(s=>id.startsWith(`${s.id}-`));
-  const target=$('dialog-research-links');target.replaceChildren();
-  for(const source of imageResearchLinks(card,detail?.set?.name||set?.name||'',state.english.get(id)?.name||'')){
-    const a=document.createElement('a');a.href=source.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=`${source.name} ↗`;target.append(a);
-  }
+  a.textContent=link.direct?'Voir la fiche produit référencée ↗':'Rechercher par nom sur Cardmarket ↗';
+  $('dialog-buy-note').textContent=link.direct
+    ?`Produit référencé pour ${card.name} · ${name} · n° ${card.localId}. Vérifiez la finition, la langue et l’état. Le prix des annonces peut différer de la cote.`
+    :`Aucun produit exact confirmé pour ${card.name} · ${name} · n° ${card.localId}. Recherche large pour éviter les pages vides ; choisissez ensuite la bonne édition. La cote ci-dessus n’est PAS le prix de cette recherche.`;
+  const exact=$('dialog-buy-exact');exact.href=targetedCardmarketSearch(card,name);exact.hidden=link.direct;
 }
 function updateDialogPrice(id){
-  const p=state.prices[id];$('dialog-price').textContent=Number.isFinite(p?.trend)?formatEuro(p.trend):'Non cotée';
-  $('dialog-avg').textContent=formatEuro(p?.avg30);$('dialog-low').textContent=formatEuro(p?.low);
-  $('dialog-price-date').textContent=p?.updated?`Source mise à jour : ${new Date(p.updated).toLocaleDateString('fr-FR')}`:'Estimation indicative, selon les données disponibles.';
+  const p=state.prices[id];const selector=$('price-variant'),row=$('price-variant-row');
+  selector.replaceChildren();row.hidden=!(p?.quotes?.length>1);
+  if(p?.quotes?.length>1){
+    selector.add(new Option('Choisir la finition…',''));
+    for(const quote of p.quotes)selector.add(new Option(quote.label,quote.id));
+    selector.value=p.selectedVariant||'';
+  }
+  const selected=p?.quotes?.find(q=>q.id===p.selectedVariant);
+  $('price-variant-label').textContent=selected?`Finition : ${selected.label}`:p?.quotes?.length>1?'Plusieurs finitions : sélectionnez celle de votre carte.':'Finition non renseignée';
+  $('dialog-price').textContent=p?.quotes?.length>1&&!selected?'Choisir la finition':Number.isFinite(trend(id))?formatEuro(trend(id)):'Cote indisponible';
+  $('dialog-avg').textContent=selected?formatEuro(p.avg30):'—';$('dialog-low').textContent=selected?formatEuro(p.low):'—';
+  const numericDate=Number(p?.updated);const date=p?.updated?(Number.isFinite(numericDate)?new Date(numericDate<1e12?numericDate*1000:numericDate):new Date(p.updated)):null;
+  const dateText=date&&!Number.isNaN(date.getTime())?`Données mises à jour le ${date.toLocaleDateString('fr-FR')}. `:'';
+  $('dialog-price-date').textContent=`${dateText}Source : TCGdex / statistiques Cardmarket. Prix indicatif par finition, ni offre actuelle ni prix garanti pour la langue ou l’état.`;
 }
 async function openDialog(id){
   const card=state.cardIndex.get(id);if(!card)return;
-  state.inspected=id;$('retry-image').hidden=offlinePack.sealed;$('dialog-title').textContent=card.name;
+  state.inspected=id;$('dialog-title').textContent=card.name;
   $('dialog-subtitle').textContent=`${state.allSets.find(s=>s.id===id.split('-')[0])?.name||card.set?.name||'Carte Pokémon'} · № ${card.localId}`;
-  $('dialog-rarity').textContent=card.rarity||'Carte de collection';updateDialogQuantity(id);updateDialogPrice(id);updateDialogBuy(id);updateResearchLinks(id);$('dialog-research-links').hidden=true;$('research-toggle').setAttribute('aria-expanded','false');updateImageSource(id);
+  $('dialog-rarity').textContent=card.rarity||'Carte de collection';updateDialogQuantity(id);updateDialogPrice(id);updateDialogBuy(id);updateImageSource(id);
   const img=$('dialog-image');img.__tried=new Set();img.__resolving=false;img.classList.remove('is-loaded');img.hidden=true;
   $('card-dialog').hidden=false;document.body.style.overflow='hidden';$('dialog-close').focus();
   if(!nextImage(img,id))findFallbackForElement(img,id);
@@ -1071,7 +1113,7 @@ async function openDialog(id){
     const detail=await requestDetail(id,true);if(state.inspected!==id)return;
     $('dialog-title').textContent=detail.name||card.name;
     $('dialog-subtitle').textContent=`${detail.set?.name||'Carte Pokémon'} · № ${detail.localId||card.localId}`;
-    $('dialog-rarity').textContent=detail.rarity||'Carte de collection';updateDialogPrice(id);updateDialogBuy(id,detail);updateResearchLinks(id,detail);
+    $('dialog-rarity').textContent=detail.rarity||'Carte de collection';updateDialogPrice(id);updateDialogBuy(id,detail);
   }catch{if(state.inspected===id)showToast('Fiche détaillée indisponible hors connexion.');}
 }
 function closeDialog(){state.inspected=null;$('card-dialog').hidden=true;document.body.style.overflow='';}
@@ -1087,6 +1129,63 @@ function switchTab(tab){
   if(!cards)closeSidebar();else renderViewport(true);updateScrollTools();
 }
 function filtersChanged(){cancelScan();cancelImageScan();state.pendingResort=false;refreshResults();scrollCatalog();startAutomaticScan();startAutomaticImageScan();}
+function applyOptions(){
+  document.documentElement.classList.toggle('pv-motion-on',state.options.animateCards);
+  document.documentElement.classList.toggle('pv-prices-off',!state.options.showPrices);
+  $('option-animation').checked=state.options.animateCards;
+  $('option-prices').checked=state.options.showPrices;
+  for(const value of ['price-desc','price-asc'])$('sort-select').querySelector(`[value="${value}"]`).hidden=!state.options.showPrices;
+  for(const value of ['over10','over50'])$('type-select').querySelector(`[value="${value}"]`).hidden=!state.options.showPrices;
+  if(!state.options.showPrices){
+    if(state.sort.startsWith('price')){state.sort='number';$('sort-select').value='number';}
+    if(state.type.startsWith('over')){state.type='all';$('type-select').value='all';}
+    stopScan();
+  }
+  updateSummary();updateCoverage();if(state.cards.length)refreshResults({keepScroll:true});
+}
+function setOption(name,value){
+  state.options[name]=value;
+  try{localStorage.setItem('pv_options_v1',JSON.stringify(state.options));}catch{}
+  applyOptions();
+}
+function hideSuggestions(){
+  state.suggestions=[];state.suggestionIndex=-1;$('search-suggestions').hidden=true;
+  $('card-search').setAttribute('aria-expanded','false');$('card-search').removeAttribute('aria-activedescendant');
+}
+function markSuggestion(){
+  const buttons=[...$('search-suggestions').querySelectorAll('[data-suggest-id]')];
+  buttons.forEach((button,i)=>{button.classList.toggle('is-active',i===state.suggestionIndex);button.setAttribute('aria-selected',String(i===state.suggestionIndex));});
+  if(state.suggestionIndex>=0)$('card-search').setAttribute('aria-activedescendant',buttons[state.suggestionIndex]?.id||'');
+  else $('card-search').removeAttribute('aria-activedescendant');
+}
+function updateSuggestions(){
+  const input=$('card-search'),query=input.value.trim(),list=$('search-suggestions');
+  if(!query||!state.allCards.length){hideSuggestions();return;}
+  state.suggestions=suggestCards(state.allCards,query,8);state.suggestionIndex=-1;
+  if(!state.suggestions.length){list.hidden=false;list.innerHTML='<p class="suggestion-empty">Aucune carte correspondante.</p>';input.setAttribute('aria-expanded','true');return;}
+  list.innerHTML=state.suggestions.map((c,i)=>{
+    const set=state.allSets.find(s=>c.id.startsWith(`${s.id}-`));
+    return `<button id="search-option-${i}" role="option" aria-selected="false" type="button" class="suggestion-item" data-suggest-id="${escapeHtml(c.id)}"><span class="suggestion-ball" aria-hidden="true">◉</span><span class="suggestion-main"><strong>${escapeHtml(c.name)}</strong><small>${escapeHtml(set?.name||c.id.split('-')[0])} · № ${escapeHtml(c.localId)}</small></span><span class="suggestion-open" aria-hidden="true">↗</span></button>`;
+  }).join('');
+  list.hidden=false;input.setAttribute('aria-expanded','true');
+}
+function chooseSuggestion(id){
+  if(!safeCardId(id)||!state.cardIndex.has(id))return;
+  hideSuggestions();openDialog(id);
+}
+function bindTilt(){
+  const grid=$('cards-grid');let active=null;
+  grid.addEventListener('pointermove',event=>{
+    if(!state.options.animateCards||event.pointerType==='touch')return;
+    const tile=event.target.closest('.card-tile');if(!tile){active?.style.removeProperty('--tilt-x');active?.style.removeProperty('--tilt-y');active=null;return;}
+    const button=tile.querySelector('.card-open');if(!button)return;
+    if(active&&active!==button){active.style.removeProperty('--tilt-x');active.style.removeProperty('--tilt-y');}
+    active=button;const rect=button.getBoundingClientRect();
+    button.style.setProperty('--tilt-x',`${((event.clientY-rect.top)/rect.height-.5)*-7}deg`);
+    button.style.setProperty('--tilt-y',`${((event.clientX-rect.left)/rect.width-.5)*9}deg`);
+  },{passive:true});
+  grid.addEventListener('pointerleave',()=>{active?.style.removeProperty('--tilt-x');active?.style.removeProperty('--tilt-y');active=null;});
+}
 function updateSearchClear(id){const input=$(id),button=$(`${id}-clear`);if(button)button.hidden=!input.value;}
 function clearSearch(id){const input=$(id);input.value='';updateSearchClear(id);input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();}
 function resetFilters(){
@@ -1134,7 +1233,25 @@ function bindEvents(){
   $('set-search').addEventListener('input',()=>{updateSearchClear('set-search');renderSets();});$('set-search-clear').addEventListener('click',()=>clearSearch('set-search'));
   $('sets-list').addEventListener('click',event=>{const btn=event.target.closest('[data-set]');if(btn)selectSet(btn.dataset.set);});
   $('all-sets').addEventListener('click',()=>selectSet('all'));
-  let searchTimer;$('card-search').addEventListener('input',()=>{updateSearchClear('card-search');clearTimeout(searchTimer);searchTimer=setTimeout(filtersChanged,150);});$('card-search-clear').addEventListener('click',()=>{clearTimeout(searchTimer);clearSearch('card-search');});
+  $('card-search').addEventListener('input',()=>{updateSearchClear('card-search');updateSuggestions();refreshResults();scrollCatalog();});
+  $('card-search-clear').addEventListener('click',()=>{clearSearch('card-search');hideSuggestions();});
+  $('card-search').addEventListener('keydown',event=>{
+    if($('search-suggestions').hidden)return;
+    if(state.suggestions.length&&(event.key==='ArrowDown'||event.key==='ArrowUp')){event.preventDefault();state.suggestionIndex=(state.suggestionIndex+(event.key==='ArrowDown'?1:-1)+state.suggestions.length)%state.suggestions.length;markSuggestion();}
+    else if(event.key==='Enter'&&state.suggestions.length){event.preventDefault();chooseSuggestion(state.suggestions[state.suggestionIndex>=0?state.suggestionIndex:0].id);}
+    else if(event.key==='Escape'){event.stopPropagation();hideSuggestions();}
+  });
+  $('search-suggestions').addEventListener('pointerdown',event=>{const b=event.target.closest('[data-suggest-id]');if(b){event.preventDefault();chooseSuggestion(b.dataset.suggestId);}});
+  document.addEventListener('pointerdown',event=>{if(!event.target.closest('.search-wrap'))hideSuggestions();if(!event.target.closest('.options-wrap')){$('options-panel').hidden=true;$('options-toggle').setAttribute('aria-expanded','false');}});
+  $('options-toggle').addEventListener('click',()=>{const panel=$('options-panel');panel.hidden=!panel.hidden;$('options-toggle').setAttribute('aria-expanded',String(!panel.hidden));});
+  $('option-animation').addEventListener('change',event=>setOption('animateCards',event.target.checked));
+  $('option-prices').addEventListener('change',event=>setOption('showPrices',event.target.checked));
+  $('price-variant').addEventListener('change',event=>{
+    const id=state.inspected,p=state.prices[id];if(!id||!p)return;
+    state.prices[id]=selectPriceVariant(p,event.target.value);state.dirtyPrices.add(id);flushPricesSoon();updateDialogPrice(id);updateTilePrice(id);updateSummary();
+    if(state.sort.startsWith('price')||state.type.startsWith('over'))refreshResults({keepScroll:true});
+  });
+  bindTilt();
   $('sort-select').addEventListener('change',event=>{state.sort=event.target.value;filtersChanged();});
   $('type-select').addEventListener('change',event=>{state.type=event.target.value;filtersChanged();});
   $('status-filters').addEventListener('click',event=>{const btn=event.target.closest('[data-status]');if(btn)setStatus(btn.dataset.status);});
@@ -1145,15 +1262,14 @@ function bindEvents(){
   $('clear-filters').addEventListener('click',resetFilters);
   $('cards-grid').addEventListener('click',event=>{const btn=event.target.closest('[data-action]');if(!btn)return;const id=btn.dataset.id;if(btn.dataset.action==='open')openDialog(id);else changeQuantity(id,btn.dataset.action==='plus'?1:-1);});
   $('tab-cards').addEventListener('click',()=>switchTab('cards'));$('tab-guide').addEventListener('click',()=>switchTab('guide'));
-  $('dialog-close').addEventListener('click',closeDialog);$('research-toggle').addEventListener('click',()=>{const target=$('dialog-research-links');target.hidden=!target.hidden;$('research-toggle').setAttribute('aria-expanded',String(!target.hidden));});
+  $('dialog-close').addEventListener('click',closeDialog);
   $('card-dialog').addEventListener('click',event=>{if(event.target.id==='card-dialog')closeDialog();});
   $('dialog-image').addEventListener('load',event=>onImageLoad(event.target));
   $('dialog-image').addEventListener('error',event=>onImageError(event.target));
-  $('retry-image').addEventListener('click',retryImage);
   $('dialog-plus').addEventListener('click',()=>{if(state.inspected)changeQuantity(state.inspected,1);});
   $('dialog-minus').addEventListener('click',()=>{if(state.inspected)changeQuantity(state.inspected,-1);});
   document.addEventListener('keydown',event=>{
-    if(event.key==='Escape'){if(!$('card-dialog').hidden)closeDialog();closeSidebar();}
+    if(event.key==='Escape'){if(!$('card-dialog').hidden)closeDialog();closeSidebar();$('options-panel').hidden=true;$('options-toggle').setAttribute('aria-expanded','false');hideSuggestions();}
     if(event.key==='Tab'&&!$('card-dialog').hidden){const buttons=[...$('card-dialog').querySelectorAll('button:not([disabled])')];const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
   });
   $('export-btn').addEventListener('click',exportCollection);$('export-images').addEventListener('click',exportImageIndex);$('import-btn').addEventListener('click',()=>$('import-file').click());$('import-file').addEventListener('change',event=>importCollection(event.target.files[0]));
@@ -1165,7 +1281,7 @@ function bindEvents(){
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();state.installEvent=event;$('install-btn').hidden=false;});
   if(/iPhone|iPad|iPod/.test(navigator.userAgent)&&!navigator.standalone)$('install-btn').hidden=false;
 }
-bindEvents();networkStatus();updateSummary();registerSW();
+bindEvents();applyOptions();networkStatus();updateSummary();registerSW();
 window.__pvBooted=true;
 loadOfflinePack().then(()=>Promise.allSettled([hydrateCache(),loadCatalog(),loadReviewedMarketLinks()])).then(results=>{
   if(results.some(result=>result.status==='rejected')){

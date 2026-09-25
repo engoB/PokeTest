@@ -3,7 +3,7 @@
 **Votre classeur de cartes Pokémon, partout avec vous.** Une application web progressive (PWA) en français pour explorer le catalogue, suivre sa collection et retrouver ses cartes, sur téléphone comme sur ordinateur.
 
 [![Vérification PWA](https://github.com/engoB/PokeTest/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/engoB/PokeTest/actions/workflows/verify.yml)
-![Version](https://img.shields.io/badge/version-4.9.0-0b1733)
+![Version](https://img.shields.io/badge/version-4.9.1-0b1733)
 ![Stack](https://img.shields.io/badge/stack-HTML%20%2F%20CSS%20%2F%20JavaScript-e6b84c)
 
 **[Ouvrir PokéVault ↗](https://engob.github.io/PokeTest/)** · [Suivre les déploiements](https://github.com/engoB/PokeTest/actions) · [Signaler un problème](https://github.com/engoB/PokeTest/issues)
@@ -45,7 +45,7 @@ Le workflow **[PokéVault – moisson d'illustrations](https://github.com/engoB/
 
 **Une URL indexée n'est pas une image téléchargée.** Une carte « introuvable » signifie seulement qu'aucun visuel valide n'a été obtenu dans les sources testées à ce stade. Les rapports GitHub Actions donnent l'état daté de la recherche ; ils ne prouvent pas qu'une illustration n'existe nulle part.
 
-**Synchronisation v4.9 :** l'application consulte automatiquement l'index de la branche `pokevault-image-data` et le réactualise toutes les six heures. Elle affiche séparément les URL indexées par GitHub et les visuels réellement chargés sur cet appareil. En cas d'indisponibilité, une copie en cache puis l'index du dépôt prennent le relais. Aucun effacement de collection ni relance manuelle de la moisson n'est nécessaire.
+**Synchronisation v4.9.1 :** l'application consulte automatiquement l'index de la branche `pokevault-image-data` et le réactualise toutes les six heures. Les compteurs techniques (URL indexées par GitHub et visuels réellement chargés sur cet appareil) se consultent uniquement dans **⚙ Options → État des visuels** ; le classeur reste dédié aux cartes. En cas d'indisponibilité, une copie en cache puis l'index du dépôt prennent le relais. Aucun effacement de collection ni relance manuelle de la moisson n'est nécessaire.
 
 Documentation : [fonctionnement de la moisson](WORK-MOISSON-VISUELS.md) · [automatisation des visuels](AUTOMATISATION-VISUELS.md) · [validation du périmètre FR](VALIDATION-MOISSON-FR.md).
 
@@ -84,7 +84,7 @@ Le site public est hébergé à **https://engob.github.io/PokeTest/**. La branch
 
 Un push sur `main` déclenche [**Verify PWA**](https://github.com/engoB/PokeTest/actions/workflows/verify.yml), qui exécute `npm run check`. **La réussite de ces tests ne signifie pas à elle seule que GitHub Pages a déployé la nouvelle interface** : attendre également la réussite de **pages build and deployment** dans [Actions](https://github.com/engoB/PokeTest/actions).
 
-Si l'ancienne interface reste affichée après le déploiement, recharger la page sans cache (`Ctrl+Maj+R` sur ordinateur), puis fermer et rouvrir la PWA installée. La v4.9 utilise `app.bundle.js?v=4.9.0`, les icônes versionnées et le service worker `pv-v4.9`. Ne pas effacer les données du site pour tenter une mise à jour sans avoir exporté la collection.
+Si l'ancienne interface reste affichée après le déploiement, recharger la page sans cache (`Ctrl+Maj+R` sur ordinateur), puis fermer et rouvrir la PWA installée. La v4.9.1 utilise `app.bundle.js?v=4.9.0`, les icônes versionnées et le service worker `pv-v4.9.1`. Ne pas effacer les données du site pour tenter une mise à jour sans avoir exporté la collection.
 
 ## Confidentialité, données et limites
 

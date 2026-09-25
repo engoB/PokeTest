@@ -3,7 +3,7 @@
 **Votre classeur de cartes Pokémon, partout avec vous.** Une application web progressive (PWA) en français pour explorer le catalogue, suivre sa collection et retrouver ses cartes, sur téléphone comme sur ordinateur.
 
 [![Vérification PWA](https://github.com/engoB/PokeTest/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/engoB/PokeTest/actions/workflows/verify.yml)
-![Version](https://img.shields.io/badge/version-4.9.1-0b1733)
+![Version](https://img.shields.io/badge/version-5.1.1-0b1733)
 ![Stack](https://img.shields.io/badge/stack-HTML%20%2F%20CSS%20%2F%20JavaScript-e6b84c)
 
 **[Ouvrir PokéVault ↗](https://engob.github.io/PokeTest/)** · [Suivre les déploiements](https://github.com/engoB/PokeTest/actions) · [Signaler un problème](https://github.com/engoB/PokeTest/issues)
@@ -12,15 +12,15 @@
 
 ## L'expérience PokéVault
 
-| Fonctionnalité | Ce que propose la v4.9 |
+| Fonctionnalité | Ce que propose la v5.1.1 |
 | --- | --- |
 | Catalogue français | 22 170 références dans le snapshot FR du 24 septembre 2026, classées par extension. |
 | Recherche immédiate | Filtrage dès la saisie, suggestions avec extension et numéro, navigation au clavier. |
 | Collection personnelle | Quantités possédées, filtres « Possédées / Manquantes », import et export JSON. |
 | Interface personnalisable | Thème bleu nuit, or et rouge ; animations de cartes et affichage des cotes activables dans **⚙ Options**. |
-| Cotes par finition | Données statistiques TCGdex / Cardmarket pour les finitions disponibles : standard, holographique et reverse. |
+| Cotes par finition | Cote Standard par défaut lorsqu’elle existe ; sélection holographique ou reverse uniquement dans la fiche ouverte. Une moyenne 30 jours disponible sans tendance est marquée ≈. |
 | Achat | Lien direct Cardmarket uniquement lorsqu'une fiche produit exacte est connue ; sinon, recherche explicite. |
-| Illustrations | Moisson planifiée sur GitHub Actions, index synchronisé dans l'application et compteur distinct pour les images réellement chargées dans le navigateur. |
+| Illustrations | Moisson GitHub et bibliothèque GitHub Pages gratuite, chargée à la demande après publication de scans autorisés ; compteur distinct des images réellement vérifiées. |
 | Confort | Grille virtualisée, trois tailles de cartes, navigation rapide, interface adaptée au mobile. |
 
 Les animations respectent la préférence système de réduction des mouvements. Une carte sans prix connu n'est **jamais** considérée comme valant 0 € ; une cote statistique n'est ni une offre de vente ni une garantie de correspondance avec une annonce Cardmarket.
@@ -93,7 +93,7 @@ Si l’ancienne interface reste affichée après le déploiement, recharger sans
 - **Illustrations :** chargées depuis leurs fournisseurs ou depuis un pack local autorisé. Les scans et marques Pokémon ne sont pas cédés par ce dépôt ; vérifier les licences et conditions des fournisseurs avant toute redistribution.
 - **Hors connexion :** la PWA peut réutiliser les données et images déjà mises en cache, sous réserve des quotas propres au navigateur.
 
-Pour la synchronisation des visuels et les nouvelles icônes, consulter [les notes v4.9](MISE-A-JOUR-v4.9.md) ; les [notes v4.8](MISE-A-JOUR-v4.8.md) détaillent l'interface précédente. Pour les évolutions envisagées des prix, consulter [la feuille de route](ROADMAP-COTES.md).
+Pour publier gratuitement des images autorisées sur GitHub Pages, consulter [le guide v5.1](BIBLIOTHEQUE-VISUELS-v5.md). Pour la synchronisation des visuels et les nouvelles icônes, consulter [les notes v4.9](MISE-A-JOUR-v4.9.md) ; les [notes v4.8](MISE-A-JOUR-v4.8.md) détaillent l'interface précédente. Pour les évolutions envisagées des prix, consulter [la feuille de route](ROADMAP-COTES.md).
 
 ---
 

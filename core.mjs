@@ -31,9 +31,11 @@ export function parsePrice(card) {
   const quotes=definitions.map(([id,label,t,a,l])=>({id,label,trend:numeric(t),avg30:numeric(a),low:numeric(l)}))
     .filter(q=>q.trend!==null||q.avg30!==null||q.low!==null);
   if(!quotes.length)return null;
-  const selectedVariant=quotes.length===1?quotes[0].id:null;
-  return selectPriceVariant({quotes,selectedVariant:null,source:'tcgdex-cardmarket',updated:cm.updated||null,fetchedAt:Date.now()},selectedVariant);
+  return selectPriceVariant({quotes,selectedVariant:null,source:'tcgdex-cardmarket',updated:cm.updated||null,fetchedAt:Date.now()},defaultPriceVariant(quotes));
 }
+// Standard is the default when available. If absent, use the first REAL finish;
+// never label a holo-only card as standard or invent a missing price.
+export function defaultPriceVariant(quotes){return quotes?.find(q=>q.id==='normal')?.id||quotes?.[0]?.id||null;}
 export function selectPriceVariant(price,id){
   const quote=price?.quotes?.find(q=>q.id===id);
   return {...price,selectedVariant:quote?.id||null,trend:quote?.trend??null,avg30:quote?.avg30??null,low:quote?.low??null};
@@ -41,7 +43,7 @@ export function selectPriceVariant(price,id){
 export function restorePrice(entry){
   if(entry?.source!=='tcgdex-cardmarket'||!Array.isArray(entry.quotes))return {trend:null,avg30:null,low:null,source:'legacy-unverified',updated:null,fetchedAt:0,quotes:[],selectedVariant:null};
   const quotes=entry.quotes.filter(q=>['normal','holo','reverse'].includes(q?.id)).map(q=>({...q,trend:numeric(q.trend),avg30:numeric(q.avg30),low:numeric(q.low)}));
-  return selectPriceVariant({...entry,quotes},entry.selectedVariant|| (quotes.length===1?quotes[0].id:null));
+  return selectPriceVariant({...entry,quotes},quotes.some(q=>q.id===entry.selectedVariant)?entry.selectedVariant:defaultPriceVariant(quotes));
 }
 export function formatEuro(value) {
   return Number.isFinite(value) ? new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(value) : '—';

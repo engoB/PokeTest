@@ -1,7 +1,7 @@
 /* Versioned PWA shell; API and visited images remain available offline after first load. */
-const VERSION='pv-v5.1';
+const VERSION='pv-v5.1.1';
 const SHELL=`${VERSION}-shell`,DATA=`${VERSION}-data`,IMAGES=`${VERSION}-images`,PACK=`${VERSION}-offline-pack`;
-const APP_FILES=['./','./index.html','./app.bundle.js?v=5.1.0','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./image-library-config.json?v=5.1.0','./assets/library/manifest.json','./inputs/cardmarket-links.json','./manifest.webmanifest?v=5.1.0','./assets/icon.svg?v=5.1.0','./assets/icon-192.png?v=5.1.0','./assets/icon-512.png?v=5.1.0','./assets/favicon-32.png?v=5.1.0','./assets/card-back.svg'];
+const APP_FILES=['./','./index.html','./app.bundle.js?v=5.1.1','./app.js','./core.mjs','./db.mjs','./virtual-grid.mjs','./image-state.mjs','./style.css','./image-library-config.json?v=5.1.1','./assets/library/manifest.json','./inputs/cardmarket-links.json','./manifest.webmanifest?v=5.1.1','./assets/icon.svg?v=5.1.1','./assets/icon-192.png?v=5.1.1','./assets/icon-512.png?v=5.1.1','./assets/favicon-32.png?v=5.1.1','./assets/card-back.svg'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const shell=await caches.open(SHELL);
   await shell.addAll(APP_FILES);

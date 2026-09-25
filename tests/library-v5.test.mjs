@@ -16,7 +16,7 @@ test('GitHub Pages v5.1 hosts only rights-cleared images, on demand',()=>{
  assert.match(sw,/pv-v5\.1/);
  assert.match(sw,/networkFirst\(req,SHELL\)/);
  assert.match(sw,/assets\/library\/cards\//);
- assert.match(read('index.html'),/app\.bundle\.js\?v=5\.1\.0/);
+ assert.match(read('index.html'),/app\.bundle\.js\?v=5\.1\.1/);
 });
 test('GitHub publisher requires rights and commits files before requesting Pages rebuild',()=>{
  const script=read('scripts/publish-image-library.mjs'),workflow=read('.github/workflows/publish-image-library.yml');
@@ -35,5 +35,7 @@ test('finish selection appears only inside the opened card',()=>{
  assert.doesNotMatch(grid,/Choisir finition/);
  assert.match(html,/id="price-variant-row"/);
  assert.match(app,/function updateDialogPrice\(id\)/);
- assert.match(app,/new Option\('Choisir la finition…',''\)/);
+ assert.doesNotMatch(app,/new Option\('Choisir la finition…',''\)/);
+ assert.match(app,/function displayedQuote\(id\)/);
+ assert.match(app,/selector.value=p.selectedVariant\|\|''/);
 });

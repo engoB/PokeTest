@@ -1,10 +1,10 @@
-# PokéVault 5.1 — bibliothèque d’images gratuite sur GitHub
+# PokéVault 5.1.1 — bibliothèque d’images gratuite sur GitHub
 
 ## Ce qui fonctionne immédiatement
 
 Le classeur continue d’afficher les images déjà indexées auprès des fournisseurs. Le nouveau dossier `assets/library/` est publié directement par **GitHub Pages**, sur le même domaine que l’application. Son manifeste est volontairement vide au départ : **aucun scan tiers n’a été copié sans confirmation des droits**. À chaque visite, PokéVault lit ce petit manifeste puis ne télécharge que les images affichées, sans imposer de pack hors ligne.
 
-Le sélecteur de finition et ses différentes cotes se trouvent **uniquement dans la fiche ouverte**. Sur les vignettes du catalogue, une cote non déterminée est simplement indiquée « Cote — ».
+Le sélecteur de finition et ses différentes cotes se trouvent **uniquement dans la fiche ouverte**. La cote **Standard** est sélectionnée par défaut dès qu’elle est disponible, sans modifier les choix précédemment enregistrés par l’utilisateur. Si la source ne fournit pas de finition Standard, l’application choisit une finition réellement disponible et l’identifie par son nom. Lorsqu’une tendance est absente mais que la moyenne 30 jours existe, la cote apparaît avec « ≈ » et une explication dans la fiche. En l’absence de données, la vignette affiche « Cote — » : aucun montant n’est inventé.
 
 ## Publier des images sur GitHub, sans stockage payant
 

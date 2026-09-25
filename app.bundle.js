@@ -1,4 +1,4 @@
-/* PokéVault 5.1 self-contained browser bundle. Generated with node scripts/build.mjs. */
+/* PokéVault 5.1.1 self-contained browser bundle. Generated with node scripts/build.mjs. */
 (()=>{
 'use strict';
 // Pure, dependency-free helpers. IDs and prices are always tied to one printing.
@@ -34,9 +34,11 @@ function parsePrice(card) {
   const quotes=definitions.map(([id,label,t,a,l])=>({id,label,trend:numeric(t),avg30:numeric(a),low:numeric(l)}))
     .filter(q=>q.trend!==null||q.avg30!==null||q.low!==null);
   if(!quotes.length)return null;
-  const selectedVariant=quotes.length===1?quotes[0].id:null;
-  return selectPriceVariant({quotes,selectedVariant:null,source:'tcgdex-cardmarket',updated:cm.updated||null,fetchedAt:Date.now()},selectedVariant);
+  return selectPriceVariant({quotes,selectedVariant:null,source:'tcgdex-cardmarket',updated:cm.updated||null,fetchedAt:Date.now()},defaultPriceVariant(quotes));
 }
+// Standard is the default when available. If absent, use the first REAL finish;
+// never label a holo-only card as standard or invent a missing price.
+function defaultPriceVariant(quotes){return quotes?.find(q=>q.id==='normal')?.id||quotes?.[0]?.id||null;}
 function selectPriceVariant(price,id){
   const quote=price?.quotes?.find(q=>q.id===id);
   return {...price,selectedVariant:quote?.id||null,trend:quote?.trend??null,avg30:quote?.avg30??null,low:quote?.low??null};
@@ -44,7 +46,7 @@ function selectPriceVariant(price,id){
 function restorePrice(entry){
   if(entry?.source!=='tcgdex-cardmarket'||!Array.isArray(entry.quotes))return {trend:null,avg30:null,low:null,source:'legacy-unverified',updated:null,fetchedAt:0,quotes:[],selectedVariant:null};
   const quotes=entry.quotes.filter(q=>['normal','holo','reverse'].includes(q?.id)).map(q=>({...q,trend:numeric(q.trend),avg30:numeric(q.avg30),low:numeric(q.low)}));
-  return selectPriceVariant({...entry,quotes},entry.selectedVariant|| (quotes.length===1?quotes[0].id:null));
+  return selectPriceVariant({...entry,quotes},quotes.some(q=>q.id===entry.selectedVariant)?entry.selectedVariant:defaultPriceVariant(quotes));
 }
 function formatEuro(value) {
   return Number.isFinite(value) ? new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(value) : '—';
@@ -282,7 +284,7 @@ const API='https://api.tcgdex.net/v2';
 const ALTERNATE_API='https://api.pokemontcg.io/v2/cards';
 const OFFLINE_ROOT='./assets/offline/';
 const HARVEST_INDEX_URL='https://raw.githubusercontent.com/engoB/PokeTest/pokevault-image-data/index.json';
-const LIBRARY_CONFIG_URL='./image-library-config.json?v=5.1.0';
+const LIBRARY_CONFIG_URL='./image-library-config.json?v=5.1.1';
 const imageLibrary={baseUrl:null,images:new Map(),version:null,status:'unconfigured',loading:false};
 const HARVEST_CACHE_KEY='./assets/offline/harvest-index-cache';
 const HARVEST_CACHE_NAME='pokevault-harvest-index-v1';
@@ -462,6 +464,15 @@ async function loadHarvestIndex(){
 }
 function isFresh(id){const p=state.prices[id];return Boolean(p?.source==='tcgdex-cardmarket'&&p.fetchedAt&&Date.now()-p.fetchedAt<PRICE_TTL);}
 function trend(id){const p=state.prices[id];return p?.source==='tcgdex-cardmarket'&&p.selectedVariant&&Number.isFinite(p.trend)?p.trend:null;}
+// The displayed quote defaults to Standard. If only its 30-day average is
+// available, mark it as approximate; never pass it off as a market trend.
+function displayedQuote(id){
+ const p=state.prices[id];
+ if(p?.source!=='tcgdex-cardmarket'||!p.selectedVariant)return {text:'Cote —',average:false};
+ if(Number.isFinite(p.trend))return {text:formatEuro(p.trend),average:false};
+ if(Number.isFinite(p.avg30))return {text:`≈ ${formatEuro(p.avg30)}`,average:true};
+ return {text:'Cote —',average:false};
+}
 function networkStatus(){const offline=!navigator.onLine;$('network-indicator').hidden=!offline;if(offline)$('network-indicator').textContent='Hors connexion · cache local';}
 
 async function hydrateCache(){
@@ -874,7 +885,7 @@ function renderViewport(force=false){
       image.addEventListener('error',()=>onImageError(image));
     }
     tile.setAttribute('aria-posinset',String(range.start+i+1));
-    const price=tile.querySelector('[data-role=price]');if(price){const p=state.prices[card.id];price.textContent=trend(card.id)===null?'Cote —':formatEuro(trend(card.id));price.title=p?.selectedVariant?`Cote indicative TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}
+    const price=tile.querySelector('[data-role=price]');if(price){const p=state.prices[card.id];const shown=displayedQuote(card.id);price.textContent=shown.text;price.title=p?.selectedVariant?`${shown.average?'Moyenne 30 jours':'Cote indicative'} TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}
     const qty=state.collection[card.id]||0;tile.dataset.owned=String(qty>0);
     const owned=tile.querySelector('[data-role=owned]');if(qty){if(owned)owned.textContent=`×${qty}`;else tile.querySelector('.card-open').insertAdjacentHTML('beforeend',`<span class="owned-pill" data-role="owned">×${qty}</span>`);}else owned?.remove();
     tile.querySelector('[data-action=minus]').hidden=!qty;
@@ -930,10 +941,10 @@ function jumpBottom(){window.scrollTo({top:document.documentElement.scrollHeight
 function ghostMarkup(id){return `<div class="card-ghost" aria-hidden="true"><span class="ghost-label">${escapeHtml(imageLabel(id))}</span></div>`;}
 function cardMarkup(c,index){
   const quantity=state.collection[c.id]||0;
-  const p=trend(c.id);
-  return `<article class="card-tile" aria-posinset="${index+1}" aria-setsize="${state.display.length}" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" style="--card-delay:${(index%13)*-170}ms" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup(c.id)}<img class="card-art" alt="Illustration de ${escapeHtml(c.name)}" loading="lazy" decoding="async" hidden><span class="price-pill" data-role="price">${p!==null?formatEuro(p):'Cote —'}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;
+  const p=displayedQuote(c.id);
+  return `<article class="card-tile" aria-posinset="${index+1}" aria-setsize="${state.display.length}" data-id="${escapeHtml(c.id)}" data-owned="${quantity>0}"><button type="button" class="card-open" style="--card-delay:${(index%13)*-170}ms" data-action="open" data-id="${escapeHtml(c.id)}" aria-label="Voir ${escapeHtml(c.name)}, carte ${escapeHtml(c.localId)}">${ghostMarkup(c.id)}<img class="card-art" alt="Illustration de ${escapeHtml(c.name)}" loading="lazy" decoding="async" hidden><span class="price-pill" data-role="price">${p.text}</span>${quantity?`<span class="owned-pill" data-role="owned">×${quantity}</span>`:''}</button><div class="card-footer"><div class="card-ident"><strong title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</strong><small>№ ${escapeHtml(c.localId)}</small></div><div class="card-quantity"><button type="button" class="qty-btn minus" data-action="minus" data-id="${escapeHtml(c.id)}" aria-label="Retirer ${escapeHtml(c.name)}" ${quantity?'':'hidden'}>−</button><button type="button" class="qty-btn add" data-action="plus" data-id="${escapeHtml(c.id)}" aria-label="Ajouter ${escapeHtml(c.name)}">+</button></div></div></article>`;
 }
-function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const el=tile.querySelector('[data-role=price]');if(el){const p=state.prices[id];el.textContent=trend(id)===null?'Cote —':formatEuro(trend(id));el.title=p?.selectedVariant?`Cote indicative TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}}}
+function updateTilePrice(id){for(const tile of $('cards-grid').querySelectorAll('.card-tile'))if(tile.dataset.id===id){const el=tile.querySelector('[data-role=price]');if(el){const p=state.prices[id];const shown=displayedQuote(id);el.textContent=shown.text;el.title=p?.selectedVariant?`${shown.average?'Moyenne 30 jours':'Cote indicative'} TCGdex · ${p.quotes.find(q=>q.id===p.selectedVariant)?.label||''} · pas un prix de vente`:'';}}}
 function updateTileQuantity(id){
   const quantity=state.collection[id]||0;
   for(const tile of $('cards-grid').querySelectorAll('.card-tile')){
@@ -1207,17 +1218,17 @@ function updateDialogPrice(id){
   const p=state.prices[id];const selector=$('price-variant'),row=$('price-variant-row');
   selector.replaceChildren();row.hidden=!(p?.quotes?.length>1);
   if(p?.quotes?.length>1){
-    selector.add(new Option('Choisir la finition…',''));
     for(const quote of p.quotes)selector.add(new Option(quote.label,quote.id));
     selector.value=p.selectedVariant||'';
   }
   const selected=p?.quotes?.find(q=>q.id===p.selectedVariant);
   $('price-variant-label').textContent=selected?`Finition : ${selected.label}`:p?.quotes?.length>1?'Plusieurs finitions : sélectionnez celle de votre carte.':'Finition non renseignée';
-  $('dialog-price').textContent=p?.quotes?.length>1&&!selected?'Choisir la finition':Number.isFinite(trend(id))?formatEuro(trend(id)):'Cote indisponible';
+  const shown=displayedQuote(id);
+  $('dialog-price').textContent=selected&&shown.text!=='Cote —'?shown.text:'Cote indisponible';
   $('dialog-avg').textContent=selected?formatEuro(p.avg30):'—';$('dialog-low').textContent=selected?formatEuro(p.low):'—';
   const numericDate=Number(p?.updated);const date=p?.updated?(Number.isFinite(numericDate)?new Date(numericDate<1e12?numericDate*1000:numericDate):new Date(p.updated)):null;
   const dateText=date&&!Number.isNaN(date.getTime())?`Données mises à jour le ${date.toLocaleDateString('fr-FR')}. `:'';
-  $('dialog-price-date').textContent=`${dateText}Source : TCGdex / statistiques Cardmarket. Prix indicatif par finition, ni offre actuelle ni prix garanti pour la langue ou l’état.`;
+  $('dialog-price-date').textContent=`${dateText}${shown.average?'≈ : moyenne sur 30 jours (tendance indisponible). ':''}Source : TCGdex / statistiques Cardmarket. Prix indicatif par finition, ni offre actuelle ni prix garanti pour la langue ou l’état.`;
 }
 async function openDialog(id){
   const card=state.cardIndex.get(id);if(!card)return;

@@ -129,98 +129,98 @@
     },
     "2013bw-1": {
       "status": "retry",
-      "checkedAt": 1790364097879,
+      "checkedAt": 1790409734468,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392897879,
+      "failures": 5,
+      "nextRetryAt": 1790467334468,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-10": {
       "status": "retry",
-      "checkedAt": 1790364097956,
+      "checkedAt": 1790409734541,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392897956,
+      "failures": 5,
+      "nextRetryAt": 1790467334541,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-11": {
       "status": "retry",
-      "checkedAt": 1790364098194,
+      "checkedAt": 1790409734756,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392898194,
+      "failures": 5,
+      "nextRetryAt": 1790467334756,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-12": {
       "status": "retry",
-      "checkedAt": 1790364098389,
+      "checkedAt": 1790409734969,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392898389,
+      "failures": 5,
+      "nextRetryAt": 1790467334969,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-2": {
       "status": "retry",
-      "checkedAt": 1790364098598,
+      "checkedAt": 1790409735221,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392898598,
+      "failures": 5,
+      "nextRetryAt": 1790467335221,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-3": {
       "status": "retry",
-      "checkedAt": 1790364098827,
+      "checkedAt": 1790409735444,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392898827,
+      "failures": 5,
+      "nextRetryAt": 1790467335444,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-4": {
       "status": "retry",
-      "checkedAt": 1790364099055,
+      "checkedAt": 1790409735659,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392899055,
+      "failures": 5,
+      "nextRetryAt": 1790467335659,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-5": {
       "status": "retry",
-      "checkedAt": 1790364099259,
+      "checkedAt": 1790409735885,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392899259,
+      "failures": 5,
+      "nextRetryAt": 1790467335885,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-6": {
       "status": "retry",
-      "checkedAt": 1790364099505,
+      "checkedAt": 1790409736083,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392899505,
+      "failures": 5,
+      "nextRetryAt": 1790467336083,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-7": {
       "status": "retry",
-      "checkedAt": 1790364099720,
+      "checkedAt": 1790409736301,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392899720,
+      "failures": 5,
+      "nextRetryAt": 1790467336301,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-8": {
       "status": "retry",
-      "checkedAt": 1790364099924,
+      "checkedAt": 1790409736512,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392899924,
+      "failures": 5,
+      "nextRetryAt": 1790467336512,
       "reason": "no-verified-english-metadata"
     },
     "2013bw-9": {
       "status": "retry",
-      "checkedAt": 1790364100170,
+      "checkedAt": 1790409736733,
       "sourcesTried": [],
-      "failures": 4,
-      "nextRetryAt": 1790392900170,
+      "failures": 5,
+      "nextRetryAt": 1790467336733,
       "reason": "no-verified-english-metadata"
     },
     "2014xy-10": {
@@ -790,8 +790,8 @@
       "reason": "free-sources-exhausted"
     },
     "2017sm-12": {
-      "status": "retry",
-      "checkedAt": 1790364104096,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409744913,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -803,11 +803,13 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match",
+        "legacy-exact-matched"
       ],
-      "failures": 4,
-      "nextRetryAt": 1790392904096,
-      "reason": "legacy-quota-exhausted"
+      "failures": 5,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "2017sm-3": {
       "status": "unavailable-in-checked-sources",
@@ -3200,8 +3202,8 @@
       "checkedAt": 1790258353682
     },
     "2023sv-1": {
-      "status": "retry",
-      "checkedAt": 1790364108060,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409748985,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -3213,11 +3215,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 4,
-      "nextRetryAt": 1790392908060,
-      "reason": "legacy-quota-exhausted"
+      "failures": 5,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "2023sv-10": {
       "status": "unavailable-in-checked-sources",
@@ -3241,8 +3244,8 @@
       "reason": "free-sources-exhausted"
     },
     "2023sv-11": {
-      "status": "retry",
-      "checkedAt": 1790364112033,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409815862,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -3254,15 +3257,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 4,
-      "nextRetryAt": 1790392912033,
-      "reason": "legacy-quota-exhausted"
+      "failures": 5,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "2023sv-12": {
-      "status": "retry",
-      "checkedAt": 1790364116009,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409823406,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -3274,15 +3278,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 4,
-      "nextRetryAt": 1790392916009,
-      "reason": "legacy-quota-exhausted"
+      "failures": 5,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "2023sv-13": {
-      "status": "retry",
-      "checkedAt": 1790364119964,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409828128,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -3294,15 +3299,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 4,
-      "nextRetryAt": 1790392919964,
-      "reason": "legacy-quota-exhausted"
+      "failures": 5,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "2023sv-14": {
-      "status": "retry",
-      "checkedAt": 1790364123928,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409894700,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -3314,15 +3320,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 4,
-      "nextRetryAt": 1790392923928,
-      "reason": "legacy-quota-exhausted"
+      "failures": 5,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "2023sv-15": {
       "status": "retry",
-      "checkedAt": 1790364127883,
+      "checkedAt": 1790409961189,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -3336,13 +3343,13 @@
         "tcgdex-id-exact-set-path",
         "tcgdex-th-exact-set-path"
       ],
-      "failures": 4,
-      "nextRetryAt": 1790392927883,
-      "reason": "legacy-quota-exhausted"
+      "failures": 5,
+      "nextRetryAt": 1790467561189,
+      "reason": "remote-temporary-error"
     },
     "2023sv-2": {
       "status": "retry",
-      "checkedAt": 1790364131859,
+      "checkedAt": 1790409970821,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -3356,13 +3363,13 @@
         "tcgdex-id-exact-set-path",
         "tcgdex-th-exact-set-path"
       ],
-      "failures": 4,
-      "nextRetryAt": 1790392931859,
-      "reason": "legacy-quota-exhausted"
+      "failures": 5,
+      "nextRetryAt": 1790467570821,
+      "reason": "remote-temporary-error"
     },
     "2023sv-3": {
-      "status": "retry",
-      "checkedAt": 1790364136239,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409978171,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -3374,11 +3381,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 4,
-      "nextRetryAt": 1790392936239,
-      "reason": "legacy-quota-exhausted"
+      "failures": 5,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "2023sv-4": {
       "status": "unavailable-in-checked-sources",
@@ -5255,7 +5263,7 @@
     },
     "B2a-002": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292711861,
+      "checkedAt": 1790410427447,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5270,13 +5278,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-003": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292718185,
+      "checkedAt": 1790410433692,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5291,13 +5299,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-004": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292727123,
+      "checkedAt": 1790410497804,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5312,13 +5320,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-005": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292741026,
+      "status": "retry",
+      "checkedAt": 1790410564368,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5330,12 +5338,11 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790439364368,
+      "reason": "remote-temporary-error"
     },
     "B2a-006": {
       "status": "unavailable-in-checked-sources",
@@ -5360,7 +5367,7 @@
     },
     "B2a-007": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292824154,
+      "checkedAt": 1790410571842,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5375,13 +5382,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-008": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292888331,
+      "checkedAt": 1790410576189,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5396,13 +5403,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-009": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292894609,
+      "checkedAt": 1790410580309,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5417,13 +5424,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-010": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292907073,
+      "checkedAt": 1790410589539,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5438,13 +5445,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-011": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292911237,
+      "checkedAt": 1790410593744,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5459,13 +5466,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-012": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292917553,
+      "checkedAt": 1790410600105,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5480,13 +5487,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-013": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292926399,
+      "checkedAt": 1790410604181,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5501,13 +5508,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-014": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292931617,
+      "checkedAt": 1790410615596,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5522,13 +5529,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-015": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292936134,
+      "checkedAt": 1790410624437,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5543,13 +5550,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-016": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292940223,
+      "checkedAt": 1790410635622,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5564,13 +5571,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-017": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292946492,
+      "checkedAt": 1790410648141,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5585,13 +5592,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-018": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292950585,
+      "status": "retry",
+      "checkedAt": 1790410714796,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5603,16 +5610,15 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790439514796,
+      "reason": "remote-temporary-error"
     },
     "B2a-019": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292958384,
+      "checkedAt": 1790410723079,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5627,13 +5633,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-020": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292962741,
+      "checkedAt": 1790410729512,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5648,13 +5654,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-021": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292969259,
+      "checkedAt": 1790410733844,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5669,13 +5675,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-022": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292975745,
+      "status": "retry",
+      "checkedAt": 1790410858472,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5687,16 +5693,15 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790439658472,
+      "reason": "remote-temporary-error"
     },
     "B2a-023": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292979840,
+      "checkedAt": 1790410866992,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5711,7 +5716,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -5738,7 +5743,7 @@
     },
     "B2a-025": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293051580,
+      "checkedAt": 1790410874512,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5753,13 +5758,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-026": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293176050,
+      "checkedAt": 1790410878572,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5774,13 +5779,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-027": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293182328,
+      "checkedAt": 1790410884844,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5795,13 +5800,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-028": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293186455,
+      "checkedAt": 1790410891091,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5816,7 +5821,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -5843,7 +5848,7 @@
     },
     "B2a-030": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293375780,
+      "checkedAt": 1790410899820,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5858,13 +5863,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-031": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293440271,
+      "checkedAt": 1790411047910,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5879,13 +5884,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-032": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293450638,
+      "status": "retry",
+      "checkedAt": 1790411057025,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5897,16 +5902,15 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790439857025,
+      "reason": "remote-temporary-error"
     },
     "B2a-033": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293454743,
+      "checkedAt": 1790411081670,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5921,13 +5925,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-034": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293458833,
+      "checkedAt": 1790411085724,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5942,13 +5946,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-035": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293462917,
+      "checkedAt": 1790411092003,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5963,13 +5967,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-036": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293471695,
+      "checkedAt": 1790411158701,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -5984,13 +5988,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-037": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293476264,
+      "checkedAt": 1790411222830,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6005,7 +6009,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -6031,7 +6035,7 @@
     },
     "B2a-039": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293548037,
+      "checkedAt": 1790411252505,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6046,13 +6050,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-040": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293552146,
+      "checkedAt": 1790411318822,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6067,7 +6071,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -6094,7 +6098,7 @@
     },
     "B2a-042": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293566052,
+      "checkedAt": 1790411328375,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6109,13 +6113,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-043": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293570155,
+      "checkedAt": 1790411334360,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6130,7 +6134,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -6157,7 +6161,7 @@
     },
     "B2a-045": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293644115,
+      "checkedAt": 1790411343378,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6172,7 +6176,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -6199,7 +6203,7 @@
     },
     "B2a-047": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293717815,
+      "checkedAt": 1790411347488,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6214,7 +6218,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -6240,7 +6244,7 @@
     },
     "B2a-049": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293789459,
+      "checkedAt": 1790411351574,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6255,13 +6259,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 3,
+      "failures": 4,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "B2a-050": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293796237,
+      "status": "retry",
+      "checkedAt": 1790411355450,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6273,16 +6277,15 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790440155450,
+      "reason": "legacy-quota-exhausted"
     },
     "B2a-051": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293817453,
+      "status": "retry",
+      "checkedAt": 1790411359412,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6294,12 +6297,11 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790440159412,
+      "reason": "legacy-quota-exhausted"
     },
     "B2a-052": {
       "status": "retry",
@@ -6322,8 +6324,8 @@
       "reason": "remote-temporary-error"
     },
     "B2a-053": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293831211,
+      "status": "retry",
+      "checkedAt": 1790411363382,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6335,12 +6337,11 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790440163382,
+      "reason": "legacy-quota-exhausted"
     },
     "B2a-054": {
       "status": "unavailable-in-checked-sources",
@@ -6364,8 +6365,8 @@
       "reason": "free-sources-exhausted"
     },
     "B2a-055": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790293959851,
+      "status": "retry",
+      "checkedAt": 1790411367352,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6377,12 +6378,11 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790440167352,
+      "reason": "legacy-quota-exhausted"
     },
     "B2a-056": {
       "status": "retry",
@@ -6426,8 +6426,8 @@
       "reason": "free-sources-exhausted"
     },
     "B2a-058": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790294041263,
+      "status": "retry",
+      "checkedAt": 1790411371312,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -6439,12 +6439,11 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790440171312,
+      "reason": "legacy-quota-exhausted"
     },
     "B2a-059": {
       "status": "retry",
@@ -8735,7 +8734,7 @@
     },
     "exu-G": {
       "status": "retry",
-      "checkedAt": 1790380720110,
+      "checkedAt": 1790410058363,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8749,9 +8748,9 @@
         "tcgdex-id-exact-set-path",
         "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395120110,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790438858363,
+      "reason": "remote-temporary-error"
     },
     "exu-H": {
       "status": "unavailable-in-checked-sources",
@@ -8775,8 +8774,8 @@
       "reason": "free-sources-exhausted"
     },
     "exu-I": {
-      "status": "retry",
-      "checkedAt": 1790380727743,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790410119331,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8788,15 +8787,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395127743,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "exu-J": {
-      "status": "retry",
-      "checkedAt": 1790380731709,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790410126928,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8808,15 +8808,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395131709,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "exu-K": {
-      "status": "retry",
-      "checkedAt": 1790380735671,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790410131149,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8828,11 +8829,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395135671,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "exu-L": {
       "status": "unavailable-in-checked-sources",
@@ -8856,8 +8858,8 @@
       "reason": "free-sources-exhausted"
     },
     "exu-M": {
-      "status": "retry",
-      "checkedAt": 1790380739677,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790410135294,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8869,15 +8871,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395139677,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "exu-N": {
       "status": "retry",
-      "checkedAt": 1790380743637,
+      "checkedAt": 1790410144005,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8891,13 +8894,13 @@
         "tcgdex-id-exact-set-path",
         "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395143637,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790438944005,
+      "reason": "remote-temporary-error"
     },
     "exu-O": {
-      "status": "retry",
-      "checkedAt": 1790380751274,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790410151745,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8909,15 +8912,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395151274,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "exu-P": {
       "status": "retry",
-      "checkedAt": 1790380755238,
+      "checkedAt": 1790410218500,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8931,13 +8935,13 @@
         "tcgdex-id-exact-set-path",
         "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395155238,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": 1790439018500,
+      "reason": "remote-temporary-error"
     },
     "exu-Q": {
-      "status": "retry",
-      "checkedAt": 1790380759201,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790410223700,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8949,15 +8953,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395159201,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "exu-R": {
-      "status": "retry",
-      "checkedAt": 1790380763174,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790410227762,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -8969,11 +8974,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790395163174,
-      "reason": "legacy-quota-exhausted"
+      "failures": 4,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "exu-S": {
       "status": "unavailable-in-checked-sources",
@@ -8998,7 +9004,7 @@
     },
     "exu-T": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292078183,
+      "checkedAt": 1790410231831,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9013,13 +9019,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "exu-U": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292087465,
+      "checkedAt": 1790410235926,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9034,13 +9040,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "exu-V": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292091561,
+      "status": "retry",
+      "checkedAt": 1790410302366,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9052,16 +9058,15 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 2,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 3,
+      "nextRetryAt": 1790424702366,
+      "reason": "remote-temporary-error"
     },
     "exu-W": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292095783,
+      "checkedAt": 1790410310051,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9076,13 +9081,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "exu-X": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292102502,
+      "checkedAt": 1790410316302,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9097,7 +9102,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -9123,8 +9128,8 @@
       "reason": "free-sources-exhausted"
     },
     "exu-Z": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292173879,
+      "status": "retry",
+      "checkedAt": 1790410324993,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9136,12 +9141,11 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 2,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 3,
+      "nextRetryAt": 1790424724993,
+      "reason": "remote-temporary-error"
     },
     "hgssp-HGSS17": {
       "status": "found",
@@ -9151,7 +9155,7 @@
     },
     "hgssp-HGSS18": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292243416,
+      "checkedAt": 1790410332938,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9165,9 +9169,9 @@
         "tcgdex-id-exact-set-path",
         "tcgdex-th-exact-set-path",
         "legacy-strict-match",
-        "legacy-exact-set-batch"
+        "legacy-exact-matched"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -9235,7 +9239,7 @@
     },
     "mee-002": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292344939,
+      "checkedAt": 1790410337296,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9250,7 +9254,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -9298,7 +9302,7 @@
     },
     "mee-005": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292596754,
+      "checkedAt": 1790410341365,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9313,13 +9317,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "mee-006": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292600856,
+      "checkedAt": 1790410345432,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9334,13 +9338,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "mee-007": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292609711,
+      "checkedAt": 1790410349467,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9355,13 +9359,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
     "mee-008": {
-      "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292615989,
+      "status": "retry",
+      "checkedAt": 1790410415777,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9373,12 +9377,11 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path",
-        "legacy-strict-match"
+        "tcgdex-th-exact-set-path"
       ],
-      "failures": 2,
-      "nextRetryAt": null,
-      "reason": "free-sources-exhausted"
+      "failures": 3,
+      "nextRetryAt": 1790424815777,
+      "reason": "remote-temporary-error"
     },
     "mep-001": {
       "status": "found",
@@ -9829,7 +9832,7 @@
     },
     "mep-073": {
       "status": "unavailable-in-checked-sources",
-      "checkedAt": 1790292689462,
+      "checkedAt": 1790410421185,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -9844,7 +9847,7 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
+      "failures": 3,
       "nextRetryAt": null,
       "reason": "free-sources-exhausted"
     },
@@ -12204,8 +12207,8 @@
       "reason": "free-sources-exhausted"
     },
     "sve-009": {
-      "status": "retry",
-      "checkedAt": 1790378592235,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409982214,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -12217,11 +12220,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790392992235,
-      "reason": "remote-temporary-error"
+      "failures": 4,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "sve-010": {
       "status": "unavailable-in-checked-sources",
@@ -12456,7 +12460,7 @@
     },
     "sve-021": {
       "status": "retry",
-      "checkedAt": 1790378823786,
+      "checkedAt": 1790409990958,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -12470,8 +12474,8 @@
         "tcgdex-id-exact-set-path",
         "tcgdex-th-exact-set-path"
       ],
-      "failures": 3,
-      "nextRetryAt": 1790393223786,
+      "failures": 4,
+      "nextRetryAt": 1790438790958,
       "reason": "remote-temporary-error"
     },
     "sve-022": {
@@ -15547,8 +15551,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-dp-m-11": {
-      "status": "retry",
-      "checkedAt": 1790379499858,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409104568,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -15560,11 +15564,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790386699858,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-dp-m-12": {
       "status": "unavailable-in-checked-sources",
@@ -15588,8 +15593,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-dp-m-2": {
-      "status": "retry",
-      "checkedAt": 1790379578795,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409108646,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -15604,13 +15609,13 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790386778795,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-dp-m-3": {
-      "status": "retry",
-      "checkedAt": 1790379645088,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409112715,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -15622,11 +15627,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790386845088,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-dp-m-4": {
       "status": "unavailable-in-checked-sources",
@@ -15671,8 +15677,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-dp-m-6": {
-      "status": "retry",
-      "checkedAt": 1790379671426,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409236937,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -15687,9 +15693,9 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790386871426,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-dp-m-7": {
       "status": "unavailable-in-checked-sources",
@@ -16103,8 +16109,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-g-15": {
-      "status": "retry",
-      "checkedAt": 1790379755239,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409246103,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16116,11 +16122,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790386955239,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-g-16": {
       "status": "unavailable-in-checked-sources",
@@ -16207,8 +16214,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-g-2": {
-      "status": "retry",
-      "checkedAt": 1790379845707,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409254954,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16220,11 +16227,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387045707,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-g-20": {
       "status": "unavailable-in-checked-sources",
@@ -16332,8 +16340,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-g-25": {
-      "status": "retry",
-      "checkedAt": 1790379890742,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409260386,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16345,11 +16353,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387090742,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-g-26": {
       "status": "unavailable-in-checked-sources",
@@ -16457,8 +16466,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-g-30": {
-      "status": "retry",
-      "checkedAt": 1790379926328,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409324496,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16470,11 +16479,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387126328,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-g-4": {
       "status": "unavailable-in-checked-sources",
@@ -16540,8 +16550,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-g-7": {
-      "status": "retry",
-      "checkedAt": 1790380077349,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409328601,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16553,11 +16563,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387277349,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-g-8": {
       "status": "unavailable-in-checked-sources",
@@ -16602,8 +16613,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-r-1": {
-      "status": "retry",
-      "checkedAt": 1790380149255,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409334875,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16615,11 +16626,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387349255,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-10": {
       "status": "unavailable-in-checked-sources",
@@ -16664,8 +16676,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-r-12": {
-      "status": "retry",
-      "checkedAt": 1790380233420,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409339015,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16680,9 +16692,9 @@
         "tcgdex-th-exact-set-path",
         "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387433420,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-13": {
       "status": "unavailable-in-checked-sources",
@@ -16874,8 +16886,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-r-21": {
-      "status": "retry",
-      "checkedAt": 1790380335106,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409345730,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16887,11 +16899,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387535106,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-22": {
       "status": "unavailable-in-checked-sources",
@@ -16915,8 +16928,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-r-23": {
-      "status": "retry",
-      "checkedAt": 1790380344742,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409412648,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16928,15 +16941,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387544742,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-24": {
-      "status": "retry",
-      "checkedAt": 1790380409629,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409419581,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16948,11 +16962,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387609629,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-25": {
       "status": "unavailable-in-checked-sources",
@@ -16976,8 +16991,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-r-26": {
-      "status": "retry",
-      "checkedAt": 1790380541356,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409423655,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -16989,11 +17004,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387741356,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-27": {
       "status": "unavailable-in-checked-sources",
@@ -17017,8 +17033,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-r-28": {
-      "status": "retry",
-      "checkedAt": 1790380668207,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409487786,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -17030,11 +17046,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387868207,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-29": {
       "status": "unavailable-in-checked-sources",
@@ -17079,8 +17096,8 @@
       "reason": "free-sources-exhausted"
     },
     "tk-hs-r-30": {
-      "status": "retry",
-      "checkedAt": 1790380672110,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409551883,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -17092,15 +17109,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387872110,
-      "reason": "legacy-quota-exhausted"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-4": {
-      "status": "retry",
-      "checkedAt": 1790380676057,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409555940,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -17112,15 +17130,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387876057,
-      "reason": "legacy-quota-exhausted"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-5": {
-      "status": "retry",
-      "checkedAt": 1790380680027,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409564799,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -17132,15 +17151,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387880027,
-      "reason": "legacy-quota-exhausted"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-6": {
-      "status": "retry",
-      "checkedAt": 1790380692364,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409574420,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -17152,15 +17172,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387892364,
-      "reason": "remote-temporary-error"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-7": {
-      "status": "retry",
-      "checkedAt": 1790380696337,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409581919,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -17172,11 +17193,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387896337,
-      "reason": "legacy-quota-exhausted"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "tk-hs-r-8": {
       "status": "unavailable-in-checked-sources",
@@ -17201,7 +17223,7 @@
     },
     "tk-hs-r-9": {
       "status": "retry",
-      "checkedAt": 1790380700297,
+      "checkedAt": 1790409648314,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -17215,9 +17237,9 @@
         "tcgdex-id-exact-set-path",
         "tcgdex-th-exact-set-path"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387900297,
-      "reason": "legacy-quota-exhausted"
+      "failures": 3,
+      "nextRetryAt": 1790424048314,
+      "reason": "remote-temporary-error"
     },
     "tk-sm-l-1": {
       "status": "found",
@@ -18882,8 +18904,8 @@
       "checkedAt": 1790291773693
     },
     "xya-107a": {
-      "status": "retry",
-      "checkedAt": 1790380704253,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409714615,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -18895,11 +18917,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387904253,
-      "reason": "legacy-quota-exhausted"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "xya-24a": {
       "status": "unavailable-in-checked-sources",
@@ -18923,8 +18946,8 @@
       "reason": "free-sources-exhausted"
     },
     "xya-28a": {
-      "status": "retry",
-      "checkedAt": 1790380708221,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409721311,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -18936,11 +18959,12 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387908221,
-      "reason": "legacy-quota-exhausted"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "xya-54a": {
       "status": "unavailable-in-checked-sources",
@@ -18964,8 +18988,8 @@
       "reason": "free-sources-exhausted"
     },
     "xya-55a": {
-      "status": "retry",
-      "checkedAt": 1790380712185,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409730146,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -18977,15 +19001,16 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387912185,
-      "reason": "legacy-quota-exhausted"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     },
     "xya-92a": {
-      "status": "retry",
-      "checkedAt": 1790380716146,
+      "status": "unavailable-in-checked-sources",
+      "checkedAt": 1790409734268,
       "sourcesTried": [
         "tcgdex-fr-exact-set-path",
         "tcgdex-en-exact-set-path",
@@ -18997,12 +19022,13 @@
         "tcgdex-ja-exact-set-path",
         "tcgdex-zh-tw-exact-set-path",
         "tcgdex-id-exact-set-path",
-        "tcgdex-th-exact-set-path"
+        "tcgdex-th-exact-set-path",
+        "legacy-strict-match"
       ],
-      "failures": 2,
-      "nextRetryAt": 1790387916146,
-      "reason": "legacy-quota-exhausted"
+      "failures": 3,
+      "nextRetryAt": null,
+      "reason": "free-sources-exhausted"
     }
   },
-  "updatedAt": "2026-09-25T23:59:23.224Z"
+  "updatedAt": "2026-09-26T08:29:31.351Z"
 }
